@@ -1,0 +1,132 @@
+{
+  "users": [
+    {
+      "id": "user-admin-1",
+      "name": "Store Manager",
+      "email": "admin@wearables.studio",
+      "passwordHash": "f164e742b9183318c01511b62b7c5bd7:7d3e40d646897a918605d105c02058b3353461e6207c96aae82a8eca3a0762f066f16b92a4bbf7600b931ab4b4b6f2558737eb6a21edc063f766b98f40092ab1",
+      "role": "admin",
+      "earnings": 0,
+      "username": "storemanager",
+      "bio": "Cashier and store operations lead."
+    },
+    {
+      "id": "user-creator-1",
+      "name": "Nour Atelier",
+      "email": "nour@wearables.studio",
+      "passwordHash": "74f04034daa4e8c88663ed541643d459:2dc356ea015ec3324b98428e8f581981cf1df4a0852c6b360706e9cc7e4c8536718323845013a400fc8b2020f25cc4cfca33ffd3d68f5f00dc58d00db7d53254",
+      "role": "creator",
+      "earnings": 1800,
+      "username": "nouratelier",
+      "bio": "Minimal monochrome designer inspired by gallery spaces."
+    },
+    {
+      "id": "user-creator-2",
+      "name": "Layla Form",
+      "email": "layla@wearables.studio",
+      "passwordHash": "a3e4464de6f477aeffea8551a42cd0aa:b1e7e6753190e0704a69aae8d8a7087e474d21d77c68f26912516ffb5e4ad4d6c60bf4106bfe34c65168b3384cca9e6ba2e9e4089a09320b844554a825bab411",
+      "role": "creator",
+      "earnings": 1350,
+      "username": "laylaform",
+      "bio": "Luxury streetwear silhouettes with editorial restraint."
+    },
+    {
+      "id": "user-customer-1",
+      "name": "Demo Customer",
+      "email": "customer@example.com",
+      "passwordHash": "f6436678bb32068aa46d47bb955254d3:d97341823b09ad08617579e2c324feb6335f7018359bde52195c92d0491f09461f989153898b36cda4f12b093a6dc1b9d0feec2de567521af1b7fff405ba0141",
+      "role": "customer",
+      "earnings": 0,
+      "username": "democustomer",
+      "bio": "Returning premium apparel customer."
+    }
+  ],
+  "designs": [
+    {
+      "id": "design-1",
+      "creatorId": "user-creator-1",
+      "title": "Monogram Noir",
+      "imageUrl": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80",
+      "price": 500,
+      "isPublished": true,
+      "salesCount": 12,
+      "mockupLabel": "Oversized Signature Tee",
+      "createdAt": "2026-03-23T11:03:10.899Z",
+      "elements": [
+        {
+          "id": "text-1",
+          "type": "text",
+          "content": "WS",
+          "x": 122,
+          "y": 140,
+          "color": "#0B0B0B",
+          "fontSize": 48
+        },
+        {
+          "id": "text-2",
+          "type": "text",
+          "content": "Monogram Noir",
+          "x": 88,
+          "y": 198,
+          "color": "#8A8A8A",
+          "fontSize": 18
+        }
+      ]
+    },
+    {
+      "id": "design-2",
+      "creatorId": "user-creator-2",
+      "title": "Atelier Grid",
+      "imageUrl": "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?auto=format&fit=crop&w=900&q=80",
+      "price": 500,
+      "isPublished": true,
+      "salesCount": 8,
+      "mockupLabel": "Gallery Cut Tee",
+      "createdAt": "2026-03-23T11:03:10.900Z",
+      "elements": [
+        {
+          "id": "text-3",
+          "type": "text",
+          "content": "ATELIER",
+          "x": 94,
+          "y": 112,
+          "color": "#0B0B0B",
+          "fontSize": 32
+        },
+        {
+          "id": "text-4",
+          "type": "text",
+          "content": "Wearables Studio",
+          "x": 72,
+          "y": 154,
+          "color": "#8A8A8A",
+          "fontSize": 16
+        }
+      ]
+    }
+  ],
+  "orders": [
+    {
+      "id": "order-1001",
+      "userId": "user-customer-1",
+      "customerName": "Demo Customer",
+      "customerPhone": "+20 100 000 0000",
+      "notes": "Need pickup after 6 PM.",
+      "status": "Pending Payment",
+      "totalPrice": 500,
+      "paymentStatus": "Pending",
+      "items": [
+        {
+          "designId": "design-1",
+          "designTitle": "Monogram Noir",
+          "size": "M",
+          "quantity": 1,
+          "unitPrice": 500
+        }
+      ],
+      "createdAt": "2026-03-23T11:03:10.900Z"
+    }
+  ],
+  "qrCodes": [],
+  "sessions": []
+}
