@@ -1,0 +1,103 @@
+{
+  "users": [
+    {
+      "id": "admin-1",
+      "name": "Store Manager",
+      "email": "admin@wearables.studio",
+      "password": "$2a$10$xw70bVJtq2M0NxcsNehJ6OtMyh6Nf63SRiFhV.Bghn7A6T3cxguP.",
+      "role": "admin",
+      "earnings": 0,
+      "phone": "+20 100 000 0000",
+      "username": "wearables-admin"
+    },
+    {
+      "id": "creator-1",
+      "name": "Nour Atelier",
+      "email": "creator@wearables.studio",
+      "password": "$2a$10$xw70bVJtq2M0NxcsNehJ6OtMyh6Nf63SRiFhV.Bghn7A6T3cxguP.",
+      "role": "creator",
+      "earnings": 750,
+      "phone": "+20 111 111 1111",
+      "username": "nour-atelier"
+    },
+    {
+      "id": "customer-1",
+      "name": "Layla Hassan",
+      "email": "customer@wearables.studio",
+      "password": "$2a$10$xw70bVJtq2M0NxcsNehJ6OtMyh6Nf63SRiFhV.Bghn7A6T3cxguP.",
+      "role": "customer",
+      "earnings": 0,
+      "phone": "+20 122 222 2222",
+      "username": "layla-h"
+    }
+  ],
+  "designs": [
+    {
+      "id": "design-1",
+      "creatorId": "creator-1",
+      "title": "Monochrome Signature",
+      "description": "Minimal typographic chest print with premium tonal contrast.",
+      "imageUrl": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=1200&q=80",
+      "price": 500,
+      "isPublished": true,
+      "salesCount": 14,
+      "layers": [],
+      "createdAt": "2026-03-18T09:00:00.000Z"
+    },
+    {
+      "id": "design-2",
+      "creatorId": "creator-1",
+      "title": "Beige Archive",
+      "description": "Soft beige back graphic with gallery-inspired spacing.",
+      "imageUrl": "https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=1200&q=80",
+      "price": 500,
+      "isPublished": true,
+      "salesCount": 9,
+      "layers": [],
+      "createdAt": "2026-03-20T12:00:00.000Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "ORD-24001",
+      "userId": "customer-1",
+      "status": "Pending Payment",
+      "paymentStatus": "Pending",
+      "totalPrice": 500,
+      "notes": "Please keep the fit oversized.",
+      "phone": "+20 122 222 2222",
+      "customerName": "Layla Hassan",
+      "items": [
+        {
+          "id": "item-1",
+          "productId": "premium-tee-black",
+          "productName": "Signature Tee",
+          "designId": "design-1",
+          "designTitle": "Monochrome Signature",
+          "size": "M",
+          "quantity": 1,
+          "price": 500,
+          "mockupUrl": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=1200&q=80"
+        }
+      ],
+      "createdAt": "2026-03-21T15:20:00.000Z",
+      "updatedAt": "2026-03-21T15:20:00.000Z"
+    }
+  ],
+  "qrCodes": [
+    {
+      "id": "qr-design-1",
+      "type": "design",
+      "entityId": "design-1",
+      "data": "https://wearables.studio/designs/design-1",
+      "generatedAt": "2026-03-18T10:00:00.000Z"
+    },
+    {
+      "id": "qr-order-1",
+      "type": "order",
+      "entityId": "ORD-24001",
+      "data": "{\"orderId\":\"ORD-24001\",\"customerName\":\"Layla Hassan\",\"phone\":\"+20 122 222 2222\",\"status\":\"Pending Payment\"}",
+      "generatedAt": "2026-03-21T15:20:00.000Z"
+    }
+  ]
+}
