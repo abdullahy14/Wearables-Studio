@@ -6,6 +6,7 @@ export const db = {
   users: [
     { id: 'user-1', name: 'Lina Hassan', email: 'lina@wearables.studio', password: 'password123', role: 'customer', earnings: 0, username: 'linah' },
     { id: 'creator-1', name: 'Mariam Nader', email: 'mariam@wearables.studio', password: 'password123', role: 'creator', earnings: 1250, username: 'mariam-nader', bio: 'Minimal monochrome designer crafting premium drops inspired by editorial fashion.' },
+    { id: 'pos-1', name: 'In-Store POS', email: 'pos@wearables.studio', password: 'password123', role: 'admin', earnings: 0, username: 'pos-tablet', bio: 'Shared in-store tablet account for assisted customer sessions and QR handoff.' },
     { id: 'admin-1', name: 'Store Manager', email: 'admin@wearables.studio', password: 'password123', role: 'admin', earnings: 0, username: 'admin', bio: 'Cashier and store operations lead.' }
   ],
   designs: [

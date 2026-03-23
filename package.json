@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check src/data.js && node --check src/qr.js"
+    "check": "node --check server.js && node --check src/data.js && node --check src/qr.js && node --check public/app.js"
   }
 }
