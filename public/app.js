@@ -57,6 +57,7 @@ const state = {
 const app = document.getElementById('app');
 let dragState = null;
 let drawingState = null;
+let designerViewer = null;
 
 function persistCart() { localStorage.setItem('wearables-cart', JSON.stringify(state.cart)); }
 function persistSession() { localStorage.setItem('wearables-session', JSON.stringify(state.session)); }
@@ -381,8 +382,129 @@ async function exportDesignPngs() {
   return pngs;
 }
 
+function buildTextureCanvas() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 1024;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = designBaseColor();
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(3.2, 3);
+  surfaceElements('front').forEach((layer) => {
+    if (layer.type === 'text') {
+      ctx.fillStyle = layer.color || currentTextColor();
+      ctx.font = `700 ${layer.fontSize || 36}px ${layer.fontFamily || 'Inter'}`;
+      ctx.fillText(layer.content, layer.x, layer.y + (layer.fontSize || 36));
+    }
+    if (layer.type === 'shape') {
+      ctx.strokeStyle = layer.color || '#0b0b0b';
+      ctx.fillStyle = layer.color || '#0b0b0b';
+      ctx.lineWidth = 6;
+      if (layer.shape === 'rect') ctx.strokeRect(layer.x, layer.y, layer.width || 140, layer.height || 110);
+      if (layer.shape === 'circle') {
+        ctx.beginPath();
+        ctx.ellipse(layer.x + (layer.width || 140) / 2, layer.y + (layer.height || 110) / 2, (layer.width || 140) / 2, (layer.height || 110) / 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (layer.shape === 'line') ctx.fillRect(layer.x, layer.y, layer.width || 140, layer.height || 8);
+    }
+  });
+  surfaceDrawings('front').forEach((stroke) => {
+    ctx.beginPath();
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = 4;
+    stroke.points.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.stroke();
+  });
+  return canvas;
+}
+
+async function setupDesignerThreeViewer() {
+  const mount = document.querySelector('[data-three-designer]');
+  if (!mount) return;
+  if (designerViewer?.mount === mount) return;
+  if (designerViewer?.renderer) {
+    designerViewer.renderer.dispose();
+    designerViewer = null;
+  }
+
+  const [THREE, { OBJLoader }] = await Promise.all([
+    import('https://unpkg.com/three@0.161.0/build/three.module.js'),
+    import('https://unpkg.com/three@0.161.0/examples/jsm/loaders/OBJLoader.js')
+  ]);
+
+  const width = mount.clientWidth || 560;
+  const height = mount.clientHeight || 560;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(width, height);
+  mount.innerHTML = '';
+  mount.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
+  camera.position.set(0, 0.8, 3.6);
+
+  const ambient = new THREE.AmbientLight(0xffffff, 1.1);
+  const directional = new THREE.DirectionalLight(0xffffff, 1.3);
+  directional.position.set(2.2, 3.4, 2.8);
+  scene.add(ambient, directional);
+
+  const textureCanvas = buildTextureCanvas();
+  const texture = new THREE.CanvasTexture(textureCanvas);
+  texture.flipY = false;
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const baseColor = state.designSetup.shirtColor === 'black' ? 0x111111 : 0xffffff;
+  const material = new THREE.MeshStandardMaterial({
+    map: texture,
+    color: baseColor,
+    roughness: 0.82,
+    metalness: 0.02
+  });
+
+  const loader = new OBJLoader();
+  const object = await new Promise((resolve, reject) => {
+    loader.load('/assets/models/tshirt.obj', resolve, undefined, reject);
+  });
+  object.traverse((child) => {
+    if (child.isMesh) {
+      child.material = material;
+      child.castShadow = false;
+      child.receiveShadow = false;
+    }
+  });
+  object.scale.set(1.35, 1.35, 1.35);
+  object.position.set(0, -0.45, 0);
+  scene.add(object);
+
+  const animate = () => {
+    if (!designerViewer || designerViewer.mount !== mount) return;
+    object.rotation.y = (state.designEditor.viewerRotation * Math.PI) / 180;
+    renderer.render(scene, camera);
+    designerViewer.frame = requestAnimationFrame(animate);
+  };
+
+  designerViewer = { mount, renderer, scene, camera, object, material, texture, textureCanvas, frame: 0, THREE };
+  animate();
+}
+
+function syncDesignerThreeViewer() {
+  if (!designerViewer) return;
+  const ctx = designerViewer.textureCanvas.getContext('2d');
+  ctx.clearRect(0, 0, designerViewer.textureCanvas.width, designerViewer.textureCanvas.height);
+  const next = buildTextureCanvas();
+  ctx.drawImage(next, 0, 0);
+  designerViewer.texture.needsUpdate = true;
+  const isWhite = state.designSetup.shirtColor === 'white';
+  designerViewer.material.color.set(isWhite ? 0xffffff : 0x111111);
+}
+
 function shell(content) {
-  return `<div class="shell"><header class="header"><div class="container header-inner"><a href="/" data-link class="brand">Wearables Studio</a><nav class="nav">${[['/', 'Home'], ['/design', 'Design Studio'], ['/creator-hub', 'Marketplace'], ['/checkout', 'Checkout'], ['/dashboard', 'Dashboard'], ['/about', 'About']].map(([href, label]) => `<a href="${href}" data-link class="${activeClass(href)}">${label}</a>`).join('')}</nav><div class="actions">${isPosMode() ? '<span class="tag">POS Mode</span>' : ''}<a href="/checkout" data-link class="button-ghost">Cart (${cartCount()})</a>${state.session ? `<button class="button">${escapeHtml(state.session.name.split(' ')[0])}</button><button class="button-ghost" data-action="logout">Logout</button>` : `<a href="/login" data-link class="button">Login</a>`}</div></div></header><main class="page container">${content}</main><footer class="footer"><div class="container footer-inner"><strong>Wearables Studio</strong><span class="muted">Premium custom apparel · In-store payment only</span></div></footer><nav class="mobile-nav">${[['/', 'Home'], ['/design', 'Studio'], ['/creator-hub', 'Market'], ['/checkout', 'Cart'], ['/dashboard', 'Admin']].map(([href, label]) => `<a href="${href}" data-link class="${activeClass(href)}">${label}</a>`).join('')}</nav></div>`;
+  return `<div class="shell"><header class="header"><div class="container header-inner"><a href="/" data-link class="brand">Wearables Studio</a><nav class="nav">${[['/', 'Home'], ['/design', 'Design Studio'], ['/creator-hub', 'Marketplace'], ['/checkout', 'Checkout'], ['/dashboard', 'Dashboard'], ['/support', 'Support'], ['/about', 'About']].map(([href, label]) => `<a href="${href}" data-link class="${activeClass(href)}">${label}</a>`).join('')}</nav><div class="actions">${isPosMode() ? '<span class="tag">POS Mode</span>' : ''}<a href="/checkout" data-link class="button-ghost">Cart (${cartCount()})</a>${state.session ? `<button class="button">${escapeHtml(state.session.name.split(' ')[0])}</button><button class="button-ghost" data-action="logout">Logout</button>` : `<a href="/login" data-link class="button">Login</a>`}</div></div></header><main class="page container">${content}</main><footer class="footer"><div class="container footer-inner"><strong>Wearables Studio</strong><span class="muted">Premium custom apparel · In-store payment only</span></div></footer><nav class="mobile-nav">${[['/', 'Home'], ['/design', 'Studio'], ['/creator-hub', 'Market'], ['/checkout', 'Cart'], ['/support', 'Support']].map(([href, label]) => `<a href="${href}" data-link class="${activeClass(href)}">${label}</a>`).join('')}</nav></div>`;
 }
 function designCards(designs) {
   return designs.map((design) => `<article class="card hover stack"><div class="card-viewer">${renderShirtViewer({ shirtColor: shirtColorForDesign(design), surfaces: buildDesignPreviewSurfaces(design), drawings: defaultDrawings(), rotation: 18 })}</div>${renderPhotoStrip(design.gallery || [design.imageUrl])}<div class="row"><div><strong>${escapeHtml(design.title)}</strong><div class="muted">by ${escapeHtml(design.creatorName || creatorName(design.creatorId))}</div></div><span class="badge">${currency(design.price)}</span></div><p class="muted">${escapeHtml(design.description)}</p><div class="row"><span class="eyebrow">${design.salesCount} sales</span><a href="/product/${design.id}" data-link>View Product</a></div></article>`).join('');
@@ -418,7 +540,7 @@ function designerQuestionFlow() {
 function designPage() {
   if (state.designSetup.step < 3) return shell(`${designerQuestionFlow()}`);
   const layer = selectedLayer();
-  return shell(`<section class="section"><div class="eyebrow">Design studio</div><h1 class="title-lg">Two-sided designer workspace with guided tools on the left and a realtime 3D rotator on the right.</h1><p class="muted">Build across front, back, left shoulder, and right shoulder. Draw freehand, add images, add text with a large font range, use friendly layer names, and preview everything on a rotatable black or white shirt model.</p></section>${posPanel('design')}<section class="designer-board"><div class="designer-left stack"><div class="card stack"><div class="row"><div><div class="eyebrow">Toolkit</div><h3 class="section-title">Editing panel</h3></div><div class="toolbar"><span class="tag">${escapeHtml(state.designSetup.shirtColor)} tee</span><button class="button-ghost" data-action="start-over-designer">Restart</button></div></div><div class="tabs">${SURFACES.map((surface) => `<button class="tab ${activeSurface() === surface.key ? 'active' : ''}" data-action="set-surface" data-surface="${surface.key}">${surface.label}</button>`).join('')}</div><div class="toolkit-grid"><button class="button" data-action="add-text">Add Text</button><label class="button-ghost">Add Picture<input data-upload="image" type="file" accept="image/*" hidden /></label>${SHAPES.map((shape) => `<button class="button-ghost" data-action="add-shape" data-shape="${shape.key}">${shape.label}</button>`).join('')}<button class="button-ghost ${state.designEditor.toolMode === 'draw' ? 'selected-chip' : ''}" data-action="set-tool" data-tool="draw">Draw</button><button class="button-ghost ${state.designEditor.toolMode === 'select' ? 'selected-chip' : ''}" data-action="set-tool" data-tool="select">Move</button></div><div class="grid-2"><label>Text / Label<input class="input" data-input="layer-content" value="${escapeHtml(layer?.content || '')}" ${layer?.type === 'text' ? '' : 'disabled'} /></label><label>Font<select class="select" data-input="layer-font" ${layer?.type === 'text' ? '' : 'disabled'}>${FONTS.map((font) => `<option value="${font}" ${layer?.fontFamily === font ? 'selected' : ''}>${font}</option>`).join('')}</select></label></div><div class="grid-3"><label>Font Size<input type="range" data-input="layer-font-size" min="14" max="120" value="${layer?.fontSize || 36}" ${layer?.type === 'text' ? '' : 'disabled'} /></label><label>Color<input class="input color-input" type="color" data-input="layer-color" value="${layer?.color || currentTextColor()}" /></label><label>Draw Color<input class="input color-input" type="color" data-input="stroke-color" value="${state.designEditor.strokeColor}" /></label></div><div class="grid-3"><label>X<input type="range" data-input="layer-x" min="0" max="260" value="${layer?.x || 0}" ${layer ? '' : 'disabled'} /></label><label>Y<input type="range" data-input="layer-y" min="0" max="320" value="${layer?.y || 0}" ${layer ? '' : 'disabled'} /></label><label>Width<input type="range" data-input="layer-width" min="40" max="260" value="${layer?.width || 140}" ${(layer && (layer.type === 'image' || layer.type === 'shape')) ? '' : 'disabled'} /></label></div><div class="card soft stack"><div class="eyebrow">Layers on ${SURFACES.find((surface) => surface.key === activeSurface()).label}</div>${surfaceElements().map((item) => `<button class="button-ghost ${state.designEditor.selectedIds[activeSurface()] === item.id ? 'selected-chip' : ''}" data-action="pick-layer" data-id="${item.id}">${escapeHtml(item.label || item.id)}</button>`).join('') || '<p class="muted">No layers yet.</p>'}<p class="muted small">Friendly labels replace internal kebab-case ids so creators see names like “Back Text A” or “LS Image B”.</p></div><div class="canvas-panel ${state.designSetup.shirtColor}" data-design-canvas>${renderDrawingOverlay(activeSurface())}${surfaceElements().map((item) => renderLayer(item, state.designEditor.selectedIds[activeSurface()] === item.id)).join('')}</div><div class="toolbar"><button class="button" data-action="save-design-private">Save 4 Private PNGs</button><span class="muted small">Saved exports are visible in the admin dashboard only.</span></div></div></div><div class="designer-right stack"><div class="card stack"><div class="row"><div><div class="eyebrow">Live preview</div><h3 class="section-title">Realtime 3D shirt rotator</h3></div><span class="tag">Live</span></div>${renderShirtViewer({ shirtColor: state.designSetup.shirtColor, surfaces: state.designEditor.surfaces, drawings: state.designEditor.drawings, rotation: state.designEditor.viewerRotation, interactive: true })}<div class="notice">White shirts now use a fully white model and white preview surfaces. Rotate the model in real time while editing on the left.</div></div></div></section>`);
+  return shell(`<section class="section"><div class="eyebrow">Design studio</div><h1 class="title-lg">Two-sided designer workspace with guided tools on the left and a realtime 3D rotator on the right.</h1><p class="muted">Build across front, back, left shoulder, and right shoulder. Draw freehand, add images, add text with a large font range, use friendly layer names, and preview everything on a rotatable black or white shirt model.</p></section>${posPanel('design')}<section class="designer-board"><div class="designer-left stack"><div class="card stack"><div class="row"><div><div class="eyebrow">Toolkit</div><h3 class="section-title">Editing panel</h3></div><div class="toolbar"><span class="tag">${escapeHtml(state.designSetup.shirtColor)} tee</span><button class="button-ghost" data-action="start-over-designer">Restart</button></div></div><div class="tabs">${SURFACES.map((surface) => `<button class="tab ${activeSurface() === surface.key ? 'active' : ''}" data-action="set-surface" data-surface="${surface.key}">${surface.label}</button>`).join('')}</div><div class="toolkit-grid"><button class="button" data-action="add-text">Add Text</button><label class="button-ghost">Add Picture<input data-upload="image" type="file" accept="image/*" hidden /></label>${SHAPES.map((shape) => `<button class="button-ghost" data-action="add-shape" data-shape="${shape.key}">${shape.label}</button>`).join('')}<button class="button-ghost ${state.designEditor.toolMode === 'draw' ? 'selected-chip' : ''}" data-action="set-tool" data-tool="draw">Draw</button><button class="button-ghost ${state.designEditor.toolMode === 'select' ? 'selected-chip' : ''}" data-action="set-tool" data-tool="select">Move</button></div><div class="grid-2"><label>Text / Label<input class="input" data-input="layer-content" value="${escapeHtml(layer?.content || '')}" ${layer?.type === 'text' ? '' : 'disabled'} /></label><label>Font<select class="select" data-input="layer-font" ${layer?.type === 'text' ? '' : 'disabled'}>${FONTS.map((font) => `<option value="${font}" ${layer?.fontFamily === font ? 'selected' : ''}>${font}</option>`).join('')}</select></label></div><div class="grid-3"><label>Font Size<input type="range" data-input="layer-font-size" min="14" max="120" value="${layer?.fontSize || 36}" ${layer?.type === 'text' ? '' : 'disabled'} /></label><label>Color<input class="input color-input" type="color" data-input="layer-color" value="${layer?.color || currentTextColor()}" /></label><label>Draw Color<input class="input color-input" type="color" data-input="stroke-color" value="${state.designEditor.strokeColor}" /></label></div><div class="grid-3"><label>X<input type="range" data-input="layer-x" min="0" max="260" value="${layer?.x || 0}" ${layer ? '' : 'disabled'} /></label><label>Y<input type="range" data-input="layer-y" min="0" max="320" value="${layer?.y || 0}" ${layer ? '' : 'disabled'} /></label><label>Width<input type="range" data-input="layer-width" min="40" max="260" value="${layer?.width || 140}" ${(layer && (layer.type === 'image' || layer.type === 'shape')) ? '' : 'disabled'} /></label></div><div class="card soft stack"><div class="eyebrow">Layers on ${SURFACES.find((surface) => surface.key === activeSurface()).label}</div>${surfaceElements().map((item) => `<button class="button-ghost ${state.designEditor.selectedIds[activeSurface()] === item.id ? 'selected-chip' : ''}" data-action="pick-layer" data-id="${item.id}">${escapeHtml(item.label || item.id)}</button>`).join('') || '<p class="muted">No layers yet.</p>'}<p class="muted small">Friendly labels replace internal kebab-case ids so creators see names like “Back Text A” or “LS Image B”.</p></div><div class="canvas-panel ${state.designSetup.shirtColor}" data-design-canvas>${renderDrawingOverlay(activeSurface())}${surfaceElements().map((item) => renderLayer(item, state.designEditor.selectedIds[activeSurface()] === item.id)).join('')}</div><div class="toolbar"><button class="button" data-action="save-design-private">Save 4 Private PNGs</button><span class="muted small">Saved exports are visible in the admin dashboard only.</span></div></div></div><div class="designer-right stack"><div class="card stack"><div class="row"><div><div class="eyebrow">Live preview</div><h3 class="section-title">Realtime 3D shirt rotator</h3></div><span class="tag">Live</span></div><div class="viewer-shell"><div class="three-designer-mount ${state.designSetup.shirtColor}" data-three-designer></div><div class="viewer-controls"><button class="button-ghost" data-action="rotate-left">Rotate Left</button><input type="range" min="-45" max="45" value="${state.designEditor.viewerRotation}" data-input="viewer-rotation" /><button class="button-ghost" data-action="rotate-right">Rotate Right</button></div></div><div class="notice">White shirts now use a fully white model and white preview surfaces. Rotate the model in real time while editing on the left.</div></div></div></section>`);
 }
 function checkoutPage() { return shell(`<section class="section"><div class="eyebrow">Checkout</div><h1 class="title-lg">Create the order online and leave payment to the in-store cashier.</h1><p class="muted">Every order is created as Pending Payment. The cashier updates payment manually when the customer arrives.</p></section>${posPanel('checkout')}<section class="order-grid"><div class="card stack"><h2>Cart summary</h2>${state.cart.length ? state.cart.map((item) => `<div class="card row compact-start"><div class="inline-media"><img src="${item.imageUrl}" alt="${escapeHtml(item.designTitle)}" class="cart-thumb" /><div><strong>${escapeHtml(item.designTitle)}</strong><div class="muted">Size ${item.size} · Qty ${item.quantity}</div></div></div><div class="stack align-end"><strong>${currency(item.quantity * item.price)}</strong><button class="button-ghost" data-action="remove-cart" data-design-id="${item.designId}" data-size="${item.size}">Remove</button></div></div>`).join('') : '<p class="muted">Your cart is empty.</p>'}<div class="row"><span class="muted">Total</span><strong>${currency(totalCart())}</strong></div></div><div class="stack"><form data-form="checkout" class="card stack"><label>Name<input class="input" name="customerName" value="${escapeHtml(isPosMode() ? state.posGuest.name : state.session?.name || '')}" required /></label><label>Phone<input class="input" name="phone" value="${escapeHtml(isPosMode() ? state.posGuest.phone : '')}" placeholder="+20 100 000 0000" required /></label><label>Optional notes<textarea class="textarea" name="notes" rows="4" placeholder="Packaging or pickup notes"></textarea></label><div class="notice">No online payment is collected here. The cashier confirms payment manually in-store before production begins.</div><button class="button" ${state.cart.length ? '' : 'disabled'}>Place Order</button></form>${state.placedOrder ? `<div class="card stack"><div class="eyebrow">Order completed</div><h3 class="section-title">Order ${state.placedOrder.id} created as Pending Payment.</h3><div class="qr-grid">${qrPanelCard('Order QR', 'Use this order QR at the cashier desk.', state.placedOrder)}${qrPanelCard('Pickup QR', 'Use this pickup QR when the order is ready.', { orderId: state.placedOrder.id, purpose: 'pickup', customer: state.placedOrder.customerName })}</div></div>` : ''}</div></section>`); }
 function loginPage() { return shell(`<section class="center-wrap"><div class="card stack auth-card"><div class="eyebrow">Login</div><h1 class="title-lg">Access Wearables Studio.</h1><p class="muted">Demo accounts: admin@wearables.studio / password123, ${POS_EMAIL} / password123, mariam@wearables.studio / password123.</p><div class="notice">The POS account is the shared in-store tablet host. Customers interact through QR-linked sub-sessions on marketplace, design studio, and checkout.</div><form data-form="login" class="stack"><input class="input" name="email" value="${POS_EMAIL}" required /><input class="input" type="password" name="password" value="password123" required /><button class="button">Login</button></form><p class="muted">Need a new account? <a href="/signup" data-link>Create one</a>.</p></div></section>`); }
@@ -426,6 +548,15 @@ function signupPage() { return shell(`<section class="center-wrap"><div class="c
 function dashboardPage() {
   if (!canAccessAdmin()) return shell(`<section class="card stack"><div class="eyebrow">Restricted</div><h1 class="title-lg">Admin dashboard access required.</h1><p class="muted">Use the seeded admin account to update payment and production statuses.</p></section>`);
   return shell(`<section class="dashboard-layout"><aside class="card stack"><div class="eyebrow">Dashboard</div>${['Orders', 'Private Exports', 'QR Generator'].map((item) => `<div class="card compact-box">${item}</div>`).join('')}<div class="notice">Private design PNG exports are only surfaced here for admin review.</div></aside><div class="stack"><div class="card stack"><div><div class="eyebrow">Order management</div><h1 class="title-lg">Store control center</h1></div><div style="overflow:auto;"><table class="table"><thead><tr><th>Order ID</th><th>Customer</th><th>Status</th><th>Payment</th><th>Created</th><th>Actions</th></tr></thead><tbody>${state.bootstrap.orders.map((order) => `<tr><td><strong>${order.id}</strong><div class="muted">${order.items.length} item(s)</div></td><td>${escapeHtml(order.customerName)}<div class="muted">${escapeHtml(order.phone)}</div></td><td><span class="tag">${escapeHtml(order.status)}</span></td><td><span class="tag">${escapeHtml(order.paymentStatus)}</span></td><td>${dateLabel(order.createdAt)}</td><td><div class="order-actions">${order.paymentStatus === 'Pending' ? `<button class="button" data-action="mark-status" data-order-id="${order.id}" data-status="Paid" data-payment="Paid">Mark as Paid</button>` : ''}${['Processing', 'Printed', 'Ready for Pickup', 'Completed'].map((status) => `<button class="button-ghost" data-action="mark-status" data-order-id="${order.id}" data-status="${status}">${status}</button>`).join('')}<button class="button-secondary" data-action="mark-status" data-order-id="${order.id}" data-status="Edits Requested">Request Edits</button><button class="button-ghost" data-action="mark-status" data-order-id="${order.id}" data-status="Cancelled">Cancel</button></div></td></tr>`).join('')}</tbody></table></div></div><div class="card stack"><div class="row"><div><div class="eyebrow">Private design exports</div><h3 class="section-title">Saved 4-surface PNG sets</h3></div><span class="tag">Admin only</span></div>${state.adminExports.length ? `<div class="export-grid">${state.adminExports.map((record) => `<article class="card stack"><div class="row"><strong>${record.id}</strong><span class="tag">${record.shirtColor}</span></div><div class="muted small">${dateLabel(record.createdAt)}</div><div class="export-thumb-grid">${SURFACES.map((surface) => `<img src="${record.pngs[surface.key]}" alt="${surface.label} export" class="export-thumb" />`).join('')}</div></article>`).join('')}</div>` : '<p class="muted">No private designer exports have been saved yet.</p>'}</div><div class="grid-2"><form data-form="dashboard-qr" class="card stack"><div class="eyebrow">QR Generator</div><select class="select" name="type"><option value="order">Order QR</option><option value="design">Design QR</option><option value="pickup">Pickup QR</option></select><input class="input" name="referenceId" value="ORD-1001" placeholder="Order ID or Design ID" /><button class="button">Generate QR</button></form><div class="card center-wrap stack"><div class="eyebrow">Generated QR</div>${state.generatedQr ? `<img class="qr-preview" src="${state.generatedQr.image}" alt="Generated QR" /><pre>${escapeHtml(state.generatedQr.data)}</pre>` : '<p class="muted">Generate a QR from an order or design reference.</p>'}</div></div></div></section>`);
+}
+function supportPage() {
+  const checks = [
+    ['API Bootstrap', '/api/bootstrap', 'Core catalog + user boot payload'],
+    ['Orders API', '/api/orders', 'Cashier and status workflow feed'],
+    ['Design Exports API', '/api/design-exports', 'Private admin-only design assets'],
+    ['QR Preview API', '/api/qr-preview?data=%7B%22health%22%3Atrue%7D', 'QR renderer health']
+  ];
+  return shell(`<section class="section"><div class="eyebrow">Technical Support Dashboard</div><h1 class="title-lg">Website troubleshooting and platform operations.</h1><p class="muted">Use this page to verify service health, inspect assets, and troubleshoot rendering workflows for the design studio and in-store operations.</p></section><section class="grid-2"><div class="card stack"><div class="row"><h3 class="section-title">Troubleshooting Playbook</h3><span class="tag">Ops</span></div><div class="support-list">${[['Designer not loading', 'Clear tablet data, verify /api/bootstrap, then refresh the design route.'], ['3D viewer not updating', 'Check the asset file under /assets/models/tshirt.obj and verify GPU acceleration in browser settings.'], ['QR not scanning', 'Regenerate QR and test endpoint /api/qr-preview with a small payload.'], ['Orders stuck pending', 'Confirm cashier updates through dashboard order actions and review /api/orders response.']].map(([title, desc]) => `<article class=\"support-item\"><strong>${title}</strong><p class=\"muted small\">${desc}</p></article>`).join('')}</div></div><div class="card stack"><div class="row"><h3 class="section-title">Website Health Checks</h3><span class="tag">Live</span></div><div class="support-list">${checks.map(([name, path, note]) => `<article class=\"support-item\"><div class=\"row\"><strong>${name}</strong><a href=\"${path}\" target=\"_blank\" rel=\"noreferrer\" class=\"button-ghost\">Open</a></div><p class=\"muted small\">${path}</p><p class=\"muted small\">${note}</p></article>`).join('')}</div></div></section><section class="card stack"><div class="row"><div><div class="eyebrow">Assets</div><h3 class="section-title">3D model inventory</h3></div><span class="tag">License-free</span></div><div class="grid-2"><article class="support-item"><strong>Primary Shirt Model</strong><p class="muted small">File: <code>/assets/models/tshirt.obj</code></p><p class="muted small">Usage: Realtime designer preview + rotator. The front texture is updated from live editor layers.</p></article><article class="support-item"><strong>Asset License Record</strong><p class="muted small">File: <code>/assets/ASSET_LICENSES.md</code></p><p class="muted small">Contains source and usage terms for technical and legal review.</p></article></div></section>`);
 }
 function aboutPage() { return shell(`<section class="section"><div class="eyebrow">About</div><h1 class="title-lg">A luxury operating system for custom apparel retail.</h1><p class="muted">Wearables Studio is designed for store-first commerce: design online, pay physically, produce with cashier control, and retrieve with QR-based workflows.</p></section><section class="grid-2"><div class="card stack"><h3>Why in-store payment?</h3><p class="muted">It preserves a premium retail handoff, avoids online gateway complexity, and keeps fulfillment tightly controlled.</p></div><div class="card stack"><h3>Why QR everywhere?</h3><p class="muted">QR cards let the store move customers between browsing, uploads, checkout, and pickup with minimal friction on shared tablets and cashier terminals.</p></div></section>`); }
 function notFoundPage() { return shell(`<section class="card stack center-wrap"><div class="eyebrow">404</div><h1 class="title-lg">Page not found.</h1><button class="button" data-action="go-home">Return Home</button></section>`); }
@@ -438,10 +569,20 @@ function route() {
   if (path === '/login') return loginPage();
   if (path === '/signup') return signupPage();
   if (path === '/dashboard') return dashboardPage();
+  if (path === '/support') return supportPage();
   if (path === '/about') return aboutPage();
   if (path.startsWith('/product/')) return productPage(path.split('/')[2]);
   if (path.startsWith('/creator/')) return creatorPage(decodeURIComponent(path.split('/')[2]));
   return notFoundPage();
 }
-function render() { app.innerHTML = route(); }
+function render() {
+  app.innerHTML = route();
+  if (state.currentPath === '/design' && state.designSetup.step >= 3) {
+    setupDesignerThreeViewer().then(syncDesignerThreeViewer);
+  } else if (designerViewer?.renderer) {
+    cancelAnimationFrame(designerViewer.frame);
+    designerViewer.renderer.dispose();
+    designerViewer = null;
+  }
+}
 (async function init() { await loadBootstrap(); if (state.currentPath === '/dashboard' && canAccessAdmin()) await ensureAdminExports(); render(); })();
