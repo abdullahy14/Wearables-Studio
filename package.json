@@ -1,0 +1,11 @@
+{
+  "name": "wearables-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Wearables Studio full-stack custom apparel platform with in-store payment workflow.",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "check": "node --check server.js && node --check lib/auth.js && node --check lib/store.js && node --check lib/templates.js && node --check lib/qr.js"
+  }
+}

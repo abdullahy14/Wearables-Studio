@@ -1,0 +1,90 @@
+{
+  "users": [
+    {
+      "id": "admin-1",
+      "name": "Store Manager",
+      "email": "admin@wearables.studio",
+      "password": "wearables-salt:c95e09771fdd8a80f081e315bec6d30a1075efe90e735e0f18a170918f65d70e",
+      "role": "admin",
+      "earnings": 0,
+      "phone": "+20 100 000 0000"
+    },
+    {
+      "id": "creator-1",
+      "name": "Nour Atelier",
+      "email": "creator@wearables.studio",
+      "password": "wearables-salt:c95e09771fdd8a80f081e315bec6d30a1075efe90e735e0f18a170918f65d70e",
+      "role": "creator",
+      "earnings": 850,
+      "phone": "+20 101 111 1111"
+    },
+    {
+      "id": "customer-1",
+      "name": "Mariam Hassan",
+      "email": "customer@wearables.studio",
+      "password": "wearables-salt:c95e09771fdd8a80f081e315bec6d30a1075efe90e735e0f18a170918f65d70e",
+      "role": "customer",
+      "earnings": 0,
+      "phone": "+20 102 222 2222"
+    }
+  ],
+  "designs": [
+    {
+      "id": "design-1",
+      "creatorId": "creator-1",
+      "title": "Monogram Noir",
+      "description": "Minimal crest artwork tailored for premium heavyweight cotton.",
+      "imageUrl": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=1200&q=80",
+      "price": 500,
+      "isPublished": true,
+      "salesCount": 16,
+      "elements": [],
+      "createdAt": "2026-03-18T08:00:00.000Z"
+    },
+    {
+      "id": "design-2",
+      "creatorId": "creator-1",
+      "title": "Studio Serif",
+      "description": "Editorial typography composition with elevated balance and spacing.",
+      "imageUrl": "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=1200&q=80",
+      "price": 500,
+      "isPublished": true,
+      "salesCount": 11,
+      "elements": [],
+      "createdAt": "2026-03-19T09:30:00.000Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "order-1001",
+      "userId": "customer-1",
+      "status": "Pending Payment",
+      "paymentStatus": "Pending",
+      "totalPrice": 500,
+      "notes": "Please keep packaging minimal.",
+      "phone": "+20 102 222 2222",
+      "customerName": "Mariam Hassan",
+      "items": [
+        {
+          "productId": "design-1",
+          "designId": "design-1",
+          "title": "Monogram Noir Tee",
+          "size": "M",
+          "price": 500,
+          "quantity": 1,
+          "creatorId": "creator-1"
+        }
+      ],
+      "createdAt": "2026-03-20T10:00:00.000Z",
+      "updatedAt": "2026-03-20T10:00:00.000Z",
+      "history": [
+        {
+          "status": "Pending Payment",
+          "timestamp": "2026-03-20T10:00:00.000Z",
+          "note": "Order placed online. Awaiting in-store payment."
+        }
+      ]
+    }
+  ],
+  "qrcodes": []
+}
