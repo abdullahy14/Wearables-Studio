@@ -61,6 +61,7 @@ function roleLandingPath(user) {
   if (user.role === 'admin' && user.email !== POS_EMAIL) return '/dashboard';
   return '/';
 }
+function canManageSmartSystem() { return canAccessSupport() && state.currentPath === '/support'; }
 function selectedLayer() { const s = state.designEditor.activeSurface; return state.designEditor.surfaces[s].find((l) => l.id === state.designEditor.selectedIds[s]); }
 
 function navigate(path) {
@@ -98,7 +99,18 @@ async function loadPreviewConfig() {
 
 function addOverlay(region, image) {
   const list = state.smartSystem.mappings[region];
-  list.push({ id: `${region}-${Date.now()}`, region, image, x: 22, y: 24, width: 32, height: 28, rotation: 0, tag: region, scale: 1 });
+  const zone = list.find((item) => item.isZone);
+  list.push({
+    id: `${region}-${Date.now()}`,
+    region,
+    image,
+    x: zone?.x ?? 22,
+    y: zone?.y ?? 24,
+    width: zone?.width ?? 32,
+    height: zone?.height ?? 28,
+    rotation: zone?.rotation ?? 0,
+    isZone: false
+  });
 }
 
 document.addEventListener('click', async (event) => {
@@ -128,6 +140,12 @@ document.addEventListener('click', async (event) => {
     render();
     return;
   }
+  if (action === 'add-region') {
+    const key = state.smartSystem.activeView;
+    state.smartSystem.mappings[key].push({ id: `${key}-zone-${Date.now()}`, region: key, image: '', x: 20, y: 20, width: 35, height: 32, rotation: 0, isZone: true });
+    render();
+    return;
+  }
   if (action === 'delete-overlay') {
     const list = state.smartSystem.mappings[state.smartSystem.activeView];
     state.smartSystem.mappings[state.smartSystem.activeView] = list.filter((m) => m.id !== btn.dataset.id);
@@ -147,19 +165,20 @@ document.addEventListener('input', (event) => {
   const t = event.target;
   if (!(t instanceof HTMLElement)) return;
   const layer = selectedLayer();
-  if (layer && t.matches('[data-input="layer-content"]')) layer.content = t.value;
-  if (layer && t.matches('[data-input="layer-font"]')) layer.fontFamily = t.value;
-  if (layer && t.matches('[data-input="layer-size"]')) layer.fontSize = Number(t.value);
-  if (layer && t.matches('[data-input="layer-color"]')) layer.color = t.value;
-  if (layer && t.matches('[data-input="layer-x"]')) layer.x = Number(t.value);
-  if (layer && t.matches('[data-input="layer-y"]')) layer.y = Number(t.value);
+  let changed = false;
+  if (layer && t.matches('[data-input="layer-content"]')) { layer.content = t.value; changed = true; }
+  if (layer && t.matches('[data-input="layer-font"]')) { layer.fontFamily = t.value; changed = true; }
+  if (layer && t.matches('[data-input="layer-size"]')) { layer.fontSize = Number(t.value); changed = true; }
+  if (layer && t.matches('[data-input="layer-color"]')) { layer.color = t.value; changed = true; }
+  if (layer && t.matches('[data-input="layer-x"]')) { layer.x = Number(t.value); changed = true; }
+  if (layer && t.matches('[data-input="layer-y"]')) { layer.y = Number(t.value); changed = true; }
 
-  if (t.matches('[data-input="overlay-x"]')) updateOverlayField(t, 'x');
-  if (t.matches('[data-input="overlay-y"]')) updateOverlayField(t, 'y');
-  if (t.matches('[data-input="overlay-width"]')) updateOverlayField(t, 'width');
-  if (t.matches('[data-input="overlay-height"]')) updateOverlayField(t, 'height');
-  if (t.matches('[data-input="overlay-rotation"]')) updateOverlayField(t, 'rotation');
-  render();
+  if (t.matches('[data-input="overlay-x"]')) { updateOverlayField(t, 'x'); changed = true; }
+  if (t.matches('[data-input="overlay-y"]')) { updateOverlayField(t, 'y'); changed = true; }
+  if (t.matches('[data-input="overlay-width"]')) { updateOverlayField(t, 'width'); changed = true; }
+  if (t.matches('[data-input="overlay-height"]')) { updateOverlayField(t, 'height'); changed = true; }
+  if (t.matches('[data-input="overlay-rotation"]')) { updateOverlayField(t, 'rotation'); changed = true; }
+  if (changed) render();
 });
 
 function updateOverlayField(input, key) {
@@ -244,7 +263,7 @@ document.addEventListener('drop', (event) => {
 
 document.addEventListener('pointerdown', (event) => {
   const node = event.target.closest('[data-overlay-id]');
-  if (!node || state.smartSystem.mode !== 'edit') return;
+  if (!node || state.smartSystem.mode !== 'edit' || !canManageSmartSystem()) return;
   const stage = node.closest('[data-smart-stage]');
   const rect = stage.getBoundingClientRect();
   dragOverlay = {
@@ -300,11 +319,13 @@ function handleModelUpload(input) {
 function renderSmartSystem(prefix = 'support') {
   const view = state.smartSystem.activeView;
   const overlays = state.smartSystem.mappings[view];
-  return `<section class="card stack"><div class="row"><div><div class="eyebrow">Image Preview Smart System</div><h3 class="section-title">2D Model Alignment Engine</h3></div><span class="tag">${state.smartSystem.mode.toUpperCase()}</span></div>
+  const supportMode = prefix === 'support' && canManageSmartSystem();
+  const editable = supportMode && state.smartSystem.mode === 'edit';
+  return `<section class="card stack"><div class="row"><div><div class="eyebrow">Image Preview Smart System</div><h3 class="section-title">2D Model Alignment Engine</h3></div><span class="tag">${supportMode ? state.smartSystem.mode.toUpperCase() : 'LIVE PREVIEW'}</span></div>
   <div class="toolbar">${MODEL_VIEWS.map((v) => `<button class="tab ${view === v.key ? 'active' : ''}" data-action="set-view" data-view="${v.key}">${v.label}</button>`).join('')}</div>
-  <div class="toolbar"><button class="button-ghost" data-action="toggle-mode">${state.smartSystem.mode === 'edit' ? 'Switch to Preview' : 'Switch to Edit'}</button><button class="button-ghost" data-action="toggle-overlays">${state.smartSystem.overlaysVisible ? 'Hide Overlays' : 'Show Overlays'}</button><label class="button-ghost">Upload Model Image<input type="file" hidden accept="image/*" data-upload="model-image" /></label><label class="button">Upload Design PNG<input type="file" hidden accept="image/png,image/*" data-upload="overlay-image" /></label><button class="button-secondary" data-action="save-mapping">Save Mapping</button></div>
-  <div class="smart-grid"><div class="smart-stage-wrap"><div class="smart-stage" data-smart-stage><img class="smart-model-image" src="${state.smartSystem.modelImages[view]}" alt="${view} model" />${state.smartSystem.overlaysVisible ? overlays.map((m) => `<div class="overlay-box ${state.smartSystem.mode === 'preview' ? 'locked' : ''}" data-overlay-id="${m.id}" style="left:${m.x}%;top:${m.y}%;width:${m.width}%;height:${m.height}%;transform:rotate(${m.rotation}deg);"><img src="${m.image}" alt="${m.region}" /><span class="overlay-label">${m.region}</span></div>`).join('') : ''}</div></div>
-  <div class="stack">${overlays.length ? overlays.map((m) => `<article class="support-item stack"><div class="row"><strong>${m.region}</strong><button class="button-ghost" data-action="delete-overlay" data-id="${m.id}">Delete</button></div><div class="grid-2"><label>X<input type="range" min="0" max="100" value="${m.x}" data-input="overlay-x" data-id="${m.id}" /></label><label>Y<input type="range" min="0" max="100" value="${m.y}" data-input="overlay-y" data-id="${m.id}" /></label><label>Width<input type="range" min="5" max="100" value="${m.width}" data-input="overlay-width" data-id="${m.id}" /></label><label>Height<input type="range" min="5" max="100" value="${m.height}" data-input="overlay-height" data-id="${m.id}" /></label></div><label>Rotate<input type="range" min="-180" max="180" value="${m.rotation}" data-input="overlay-rotation" data-id="${m.id}" /></label></article>`).join('') : '<p class="muted">Upload or preview a design to place overlays on this model image.</p>'}</div></div></section>`;
+  ${supportMode ? `<div class="toolbar"><button class="button-ghost" data-action="toggle-mode">${state.smartSystem.mode === 'edit' ? 'Switch to Preview' : 'Switch to Edit'}</button><button class="button-ghost" data-action="toggle-overlays">${state.smartSystem.overlaysVisible ? 'Hide Overlays' : 'Show Overlays'}</button><button class="button-ghost" data-action="add-region">Add Region Zone</button><label class="button-ghost">Upload Model Image<input type="file" hidden accept="image/*" data-upload="model-image" /></label><label class="button">Upload Design PNG<input type="file" hidden accept="image/png,image/*" data-upload="overlay-image" /></label><button class="button-secondary" data-action="save-mapping">Save Mapping</button></div>` : `<div class="notice">Model image and placement zones are managed by Technical Support. Designers can preview artwork in mapped zones only.</div>`}
+  <div class="smart-grid"><div class="smart-stage-wrap"><div class="smart-stage" data-smart-stage><img class="smart-model-image" src="${state.smartSystem.modelImages[view]}" alt="${view} model" />${state.smartSystem.overlaysVisible ? overlays.map((m) => `<div class="overlay-box ${editable ? '' : 'locked'} ${m.isZone ? 'zone-box' : ''}" data-overlay-id="${m.id}" style="left:${m.x}%;top:${m.y}%;width:${m.width}%;height:${m.height}%;transform:rotate(${m.rotation}deg);">${m.image ? `<img src="${m.image}" alt="${m.region}" />` : ''}<span class="overlay-label">${m.isZone ? 'Zone' : m.region}</span></div>`).join('') : ''}</div></div>
+  <div class="stack">${overlays.length ? overlays.map((m) => supportMode ? `<article class="support-item stack"><div class="row"><strong>${m.isZone ? 'Zone' : m.region}</strong><button class="button-ghost" data-action="delete-overlay" data-id="${m.id}">Delete</button></div><div class="grid-2"><label>X<input type="range" min="0" max="100" value="${m.x}" data-input="overlay-x" data-id="${m.id}" /></label><label>Y<input type="range" min="0" max="100" value="${m.y}" data-input="overlay-y" data-id="${m.id}" /></label><label>Width<input type="range" min="5" max="100" value="${m.width}" data-input="overlay-width" data-id="${m.id}" /></label><label>Height<input type="range" min="5" max="100" value="${m.height}" data-input="overlay-height" data-id="${m.id}" /></label></div><label>Rotate<input type="range" min="-180" max="180" value="${m.rotation}" data-input="overlay-rotation" data-id="${m.id}" /></label></article>` : `<article class="support-item"><strong>${m.isZone ? 'Mapped zone' : 'Design placement'}</strong><div class="muted small">x:${Math.round(m.x)} y:${Math.round(m.y)} w:${Math.round(m.width)} h:${Math.round(m.height)} rot:${Math.round(m.rotation)}°</div></article>`).join('') : '<p class="muted">No mappings yet for this view.</p>'}</div></div></section>`;
 }
 
 function shell(content) {
@@ -313,12 +334,17 @@ function shell(content) {
 }
 
 function homePage() {
-  return shell(`<section class="hero card soft"><div class="stack"><span class="badge">Luxury custom apparel</span><h1 class="title-xl">Design online and preview instantly on real model photos.</h1><p class="muted">2D Smart Preview maps your design to front, back, and shoulder regions with precise transform controls.</p><div class="toolbar"><a href="/design" data-link class="button">Start Designing</a><a href="/creator-hub" data-link class="button-ghost">Creator Hub</a></div></div></section>`);
+  const recommendations = [
+    ['Monochrome Signature', 'Minimal black/white compositions with bold typography.'],
+    ['Editorial Beige', 'Neutral tones with premium serif headlines.'],
+    ['Street Utility', 'Strong shoulder marks with compact chest logos.']
+  ];
+  return shell(`<section class="hero card soft"><div class="stack"><span class="badge">Wearables Studio · Premium Identity</span><h1 class="title-xl">Your premium custom-wear platform with creator-led brand storytelling.</h1><p class="muted">Brand direction: minimalist luxury, bold typography, editorial photography, and smooth product previews matching your modern UI language.</p><div class="toolbar"><a href="/design" data-link class="button">Start Designing</a><a href="/creator-hub" data-link class="button-ghost">Open Creator Hub</a></div><div class="grid-3">${recommendations.map(([title, desc]) => `<article class="support-item"><strong>${title}</strong><p class="muted small">${desc}</p></article>`).join('')}</div></div></section><section class="grid-2"><article class="card"><div class="eyebrow">Brand Recommendation</div><h3 class="section-title">Hero Visual Language</h3><p class="muted">Use monochrome foundations, one warm neutral accent, rounded modules, and soft shadows across all pages.</p></article><article class="card"><div class="eyebrow">Drop Recommendation</div><h3 class="section-title">Collection Strategy</h3><p class="muted">Launch capsule drops: Signature Black, Studio Ivory, and Shoulder Mark Series with consistent naming and tags.</p></article></section>`);
 }
 
 function designPage() {
   const layer = selectedLayer();
-  return shell(`<section class="section"><div class="eyebrow">Design Studio</div><h1 class="title-lg">2D model preview with smart placement mapping.</h1><p class="muted">3D mockups have been fully removed. Use Preview on Model to place your current surface design.</p></section><section class="designer-board"><div class="card stack"><div class="tabs">${SURFACES.map((s) => `<button class="tab ${state.designEditor.activeSurface === s.key ? 'active' : ''}" data-action="set-surface" data-surface="${s.key}">${s.label}</button>`).join('')}</div><div class="toolbar"><button class="button" data-action="add-text">Add Text</button><button class="button-secondary" data-action="preview-on-model">Preview on Model</button></div><label>Text<input class="input" data-input="layer-content" value="${escapeHtml(layer?.content || '')}" /></label><div class="grid-2"><label>Font<select class="select" data-input="layer-font">${FONTS.map((f) => `<option ${layer?.fontFamily === f ? 'selected' : ''}>${f}</option>`).join('')}</select></label><label>Font Size<input type="range" min="12" max="120" value="${layer?.fontSize || 32}" data-input="layer-size" /></label></div><div class="grid-3"><label>Color<input class="input color-input" type="color" data-input="layer-color" value="${layer?.color || '#ffffff'}" /></label><label>X<input type="range" min="0" max="300" value="${layer?.x || 0}" data-input="layer-x" /></label><label>Y<input type="range" min="0" max="300" value="${layer?.y || 0}" data-input="layer-y" /></label></div><div class="canvas-panel ${state.designEditor.shirtColor}">${state.designEditor.surfaces[state.designEditor.activeSurface].map((item) => `<button class="button-ghost ${item.id === state.designEditor.selectedIds[state.designEditor.activeSurface] ? 'selected-chip' : ''}" data-action="pick-layer" data-id="${item.id}">${item.label}</button>`).join('')}</div></div><div class="stack">${renderSmartSystem('designer')}</div></section>`);
+  return shell(`<section class="section"><div class="eyebrow">Design Studio</div><h1 class="title-lg">2D model preview with smart placement mapping.</h1><p class="muted">3D mockups have been fully removed. Technical Support defines model images/zones, and designers preview artwork inside those mapped areas.</p></section><section class="designer-board"><div class="card stack"><div class="tabs">${SURFACES.map((s) => `<button class="tab ${state.designEditor.activeSurface === s.key ? 'active' : ''}" data-action="set-surface" data-surface="${s.key}">${s.label}</button>`).join('')}</div><div class="toolbar"><button class="button" data-action="add-text">Add Text</button><button class="button-secondary" data-action="preview-on-model">Preview on Model</button></div><label>Text<input class="input" data-input="layer-content" value="${escapeHtml(layer?.content || '')}" /></label><div class="grid-2"><label>Font<select class="select" data-input="layer-font">${FONTS.map((f) => `<option ${layer?.fontFamily === f ? 'selected' : ''}>${f}</option>`).join('')}</select></label><label>Font Size<input type="range" min="12" max="120" value="${layer?.fontSize || 32}" data-input="layer-size" /></label></div><div class="grid-3"><label>Color<input class="input color-input" type="color" data-input="layer-color" value="${layer?.color || '#ffffff'}" /></label><label>X<input type="range" min="0" max="300" value="${layer?.x || 0}" data-input="layer-x" /></label><label>Y<input type="range" min="0" max="300" value="${layer?.y || 0}" data-input="layer-y" /></label></div><div class="canvas-panel ${state.designEditor.shirtColor}">${state.designEditor.surfaces[state.designEditor.activeSurface].map((item) => `<button class="button-ghost ${item.id === state.designEditor.selectedIds[state.designEditor.activeSurface] ? 'selected-chip' : ''}" data-action="pick-layer" data-id="${item.id}">${item.label}</button>`).join('')}</div></div><div class="stack">${renderSmartSystem('designer')}</div></section>`);
 }
 
 function creatorHubPage() {
