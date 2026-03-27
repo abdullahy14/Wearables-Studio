@@ -72,6 +72,7 @@ function buildBootstrap() {
     designs: db.designs.map((design) => ({ ...design, creatorName: getCreatorName(design.creatorId) })),
     creators: db.users.filter((user) => user.role === 'creator').map(sanitizeUser),
     orders: db.orders,
+    supportTickets: db.supportTickets,
     users: db.users.map(sanitizeUser)
   };
 }

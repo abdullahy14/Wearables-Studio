@@ -52,6 +52,7 @@ button, input, select { font: inherit; }
 .overlay-box.locked { cursor: default; border-style: solid; }
 .overlay-box img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; border-radius: 12px; }
 .overlay-label { position: absolute; left: 4px; top: 4px; font-size: .7rem; background: rgba(255,255,255,.8); border-radius: 8px; padding: .15rem .4rem; }
+.scale-handle { position: absolute; right: -8px; bottom: -8px; width: 16px; height: 16px; border-radius: 999px; background: #111; border: 2px solid #fff; cursor: nwse-resize; }
 .zone-box { background: repeating-linear-gradient(45deg, rgba(255,255,255,.42), rgba(255,255,255,.42) 6px, rgba(0,0,0,.04) 6px, rgba(0,0,0,.04) 12px); }
 .media-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .media-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; }
@@ -63,9 +64,10 @@ button, input, select { font: inherit; }
   .hero { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
-  .designer-board { grid-template-columns: 1fr 1.1fr; }
+  .designer-board { grid-template-columns: 1fr 1fr; }
   .smart-grid { grid-template-columns: 1.15fr .85fr; }
   .mobile-nav { display: none; }
+  .designer-board > .card:first-child { position: sticky; top: 86px; align-self: start; }
 }
 @media (max-width: 767px) {
   .nav { display: none; }
