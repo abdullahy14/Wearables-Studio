@@ -1,7 +1,8 @@
-# Wearables Studio Asset Licenses
+# Asset License Notes
 
-## `/assets/models/tshirt.obj`
-- Source: Created in-house for this repository by the development agent.
-- License: **CC0-1.0** (public domain dedication).
-- Usage: Can be used commercially and modified without attribution.
-- Notes: Intended as the default lightweight website T-shirt 3D model for realtime previews.
+This project currently uses externally hosted demo photos for 2D model previews in the UI.
+
+- No local 3D model files are used.
+- No Three.js/WebGL model assets are required.
+
+If local assets are added later, document source, license, and usage here.

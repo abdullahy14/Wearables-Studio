@@ -7,7 +7,8 @@ export const db = {
     { id: 'user-1', name: 'Lina Hassan', email: 'lina@wearables.studio', password: 'password123', role: 'customer', earnings: 0, username: 'linah' },
     { id: 'creator-1', name: 'Mariam Nader', email: 'mariam@wearables.studio', password: 'password123', role: 'creator', earnings: 1250, username: 'mariam-nader', bio: 'Minimal monochrome designer crafting premium drops inspired by editorial fashion.' },
     { id: 'pos-1', name: 'In-Store POS', email: 'pos@wearables.studio', password: 'password123', role: 'admin', earnings: 0, username: 'pos-tablet', bio: 'Shared in-store tablet account for assisted customer sessions and QR handoff.' },
-    { id: 'admin-1', name: 'Store Manager', email: 'admin@wearables.studio', password: 'password123', role: 'admin', earnings: 0, username: 'admin', bio: 'Cashier and store operations lead.' }
+    { id: 'admin-1', name: 'Store Manager', email: 'admin@wearables.studio', password: 'password123', role: 'admin', earnings: 0, username: 'admin', bio: 'Cashier and store operations lead.' },
+    { id: 'support-1', name: 'Tech Support', email: 'support@wearables.studio', password: 'password123', role: 'technical_support', earnings: 0, username: 'support', bio: 'Technical support operations dashboard user.' }
   ],
   designs: [
     { id: 'design-1', creatorId: 'creator-1', title: 'Atelier Noir', imageUrl: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80', gallery: ['https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'], price: SHIRT_PRICE, isPublished: true, salesCount: 32, description: 'A premium monochrome composition tailored for elevated streetwear.', tags: ['black', 'minimal', 'premium'] },
@@ -19,7 +20,8 @@ export const db = {
     { id: 'ORD-1002', userId: 'user-1', customerName: 'Lina Hassan', phone: '+20 100 123 4567', status: 'Ready for Pickup', totalPrice: 1000, paymentStatus: 'Paid', items: [{ productId: 'design-2', designId: 'design-2', size: 'L', quantity: 2, unitPrice: 500 }], createdAt: new Date(Date.now() - 86400000).toISOString() }
   ],
   qrCodes: [],
-  designExports: []
+  designExports: [],
+  previewConfigs: []
 };
 
 export function sanitizeUser(user) {
@@ -109,4 +111,22 @@ export function saveDesignExport(payload) {
   };
   db.designExports.unshift(record);
   return record;
+}
+
+
+export function savePreviewConfig(payload) {
+  const record = {
+    id: `preview-${Date.now()}`,
+    designId: payload.designId || 'unknown',
+    modelImageId: payload.modelImageId || 'front',
+    mappings: payload.mappings || {},
+    modelImages: payload.modelImages || {},
+    createdAt: new Date().toISOString()
+  };
+  db.previewConfigs.unshift(record);
+  return record;
+}
+
+export function listPreviewConfigs() {
+  return db.previewConfigs;
 }

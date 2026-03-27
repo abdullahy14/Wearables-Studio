@@ -11,6 +11,8 @@ import {
   createQrRecord,
   createUser,
   db,
+  listPreviewConfigs,
+  savePreviewConfig,
   findCreator,
   findDesign,
   findOrder,
@@ -90,6 +92,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'GET' && url.pathname === '/api/designs') return sendJson(res, 200, { designs: db.designs });
   if (req.method === 'GET' && url.pathname === '/api/design-exports') return sendJson(res, 200, { exports: db.designExports });
+  if (req.method === 'GET' && url.pathname === '/api/preview-configs') return sendJson(res, 200, { configs: listPreviewConfigs() });
   if (req.method === 'GET' && url.pathname.startsWith('/api/designs/')) {
     const id = url.pathname.split('/')[3];
     const design = findDesign(id);
@@ -123,6 +126,12 @@ const server = http.createServer(async (req, res) => {
     const body = await parseBody(req).catch(() => ({}));
     if (!body.pngs || !body.surfaces) return sendJson(res, 400, { error: 'Missing export payload' });
     return sendJson(res, 201, { exportRecord: saveDesignExport(body) });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/preview-configs') {
+    const body = await parseBody(req).catch(() => ({}));
+    if (!body.mappings) return sendJson(res, 400, { error: 'Missing preview mapping payload' });
+    return sendJson(res, 201, { config: savePreviewConfig(body) });
   }
 
   if (req.method === 'POST' && url.pathname === '/api/orders') {
