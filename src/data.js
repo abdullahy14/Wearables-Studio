@@ -11,9 +11,9 @@ export const db = {
     { id: 'support-1', name: 'Tech Support', email: 'support@wearables.studio', password: 'password123', role: 'technical_support', earnings: 0, username: 'support', bio: 'Technical support operations dashboard user.' }
   ],
   designs: [
-    { id: 'design-1', creatorId: 'creator-1', title: 'Atelier Noir', imageUrl: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80', gallery: ['https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'], price: SHIRT_PRICE, isPublished: true, salesCount: 32, description: 'A premium monochrome composition tailored for elevated streetwear.', tags: ['black', 'minimal', 'premium'] },
-    { id: 'design-2', creatorId: 'creator-1', title: 'Gallery Type', imageUrl: 'https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=900&q=80', gallery: ['https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80'], price: SHIRT_PRICE, isPublished: true, salesCount: 18, description: 'Editorial typography with understated beige accents for a gallery-inspired drop.', tags: ['editorial', 'beige', 'type'] },
-    { id: 'design-3', creatorId: 'creator-1', title: 'Studio Lines', imageUrl: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', gallery: ['https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=900&q=80'], price: SHIRT_PRICE, isPublished: true, salesCount: 12, description: 'Architectural line work engineered for clean luxury basics.', tags: ['lines', 'luxury', 'architecture'] }
+    { id: 'design-1', creatorId: 'creator-1', title: 'Atelier Noir', imageUrl: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80', gallery: ['https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'], price: SHIRT_PRICE, isPublished: true, salesCount: 32, likes: 142, comments: 19, description: 'A premium monochrome composition tailored for elevated streetwear.', tags: ['black', 'minimal', 'premium'] },
+    { id: 'design-2', creatorId: 'creator-1', title: 'Gallery Type', imageUrl: 'https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=900&q=80', gallery: ['https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80'], price: SHIRT_PRICE, isPublished: true, salesCount: 18, likes: 86, comments: 7, description: 'Editorial typography with understated beige accents for a gallery-inspired drop.', tags: ['editorial', 'beige', 'type'] },
+    { id: 'design-3', creatorId: 'creator-1', title: 'Studio Lines', imageUrl: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', gallery: ['https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=900&q=80'], price: SHIRT_PRICE, isPublished: true, salesCount: 12, likes: 51, comments: 5, description: 'Architectural line work engineered for clean luxury basics.', tags: ['lines', 'luxury', 'architecture'] }
   ],
   orders: [
     { id: 'ORD-1001', userId: 'user-1', customerName: 'Lina Hassan', phone: '+20 100 123 4567', notes: 'Please keep the packaging minimal.', status: 'Pending Payment', totalPrice: 500, paymentStatus: 'Pending', items: [{ productId: 'design-1', designId: 'design-1', size: 'M', quantity: 1, unitPrice: 500 }], createdAt: new Date().toISOString() },
@@ -21,7 +21,19 @@ export const db = {
   ],
   qrCodes: [],
   designExports: [],
-  previewConfigs: []
+  previewConfigs: [],
+  siteConfig: {
+    price: SHIRT_PRICE,
+    commission: CREATOR_COMMISSION,
+    homepageImages: [
+      'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=1200&q=80'
+    ],
+    homepageSections: [
+      { id: 'sec-1', title: 'Premium Monochrome', body: 'Clean black-and-white drops for high-end streetwear.' },
+      { id: 'sec-2', title: 'Creator Spotlights', body: 'Highlight independent creators and limited capsule launches.' }
+    ]
+  }
 };
 
 export function sanitizeUser(user) {
@@ -77,6 +89,18 @@ export function createOrder({ userId, customerName, phone, notes, items }) {
     items: items.map((item) => ({ productId: item.productId, designId: item.designId, size: item.size, quantity: item.quantity, unitPrice: item.price || item.unitPrice })),
     createdAt: new Date().toISOString()
   };
+  let creatorCredits = 0;
+  for (const item of order.items) {
+    const design = findDesign(item.designId);
+    if (!design?.creatorId) continue;
+    const creator = db.users.find((user) => user.id === design.creatorId);
+    if (!creator) continue;
+    const credit = CREATOR_COMMISSION * (item.quantity || 1);
+    creator.earnings = (creator.earnings || 0) + credit;
+    design.salesCount = (design.salesCount || 0) + (item.quantity || 1);
+    creatorCredits += credit;
+  }
+  order.creatorCredits = creatorCredits;
   db.orders.unshift(order);
   return order;
 }
@@ -129,4 +153,16 @@ export function savePreviewConfig(payload) {
 
 export function listPreviewConfigs() {
   return db.previewConfigs;
+}
+
+export function getSiteConfig() {
+  return db.siteConfig;
+}
+
+export function updateSiteConfig(payload) {
+  db.siteConfig = {
+    ...db.siteConfig,
+    ...payload
+  };
+  return db.siteConfig;
 }

@@ -35,8 +35,14 @@ button, input, select { font: inherit; }
 .badge, .tag { border-radius: 999px; background: #f0ece8; padding: .35rem .65rem; font-size: .72rem; }
 .designer-board { align-items: start; }
 .canvas-panel { min-height: 120px; border-radius: 14px; border: 1px dashed var(--line); padding: .8rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+.canvas-panel[data-design-canvas] { position: relative; min-height: 420px; overflow: hidden; display: block; }
 .canvas-panel.black { background: linear-gradient(180deg,#111,#040404); }
 .canvas-panel.white { background: linear-gradient(180deg,#fff,#f3f3f3); }
+.design-layer { position: absolute; user-select: none; cursor: move; max-width: 85%; }
+.design-layer.selected { outline: 2px solid rgba(255,255,255,.85); border-radius: 10px; }
+.design-path-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.design-path-layer.selected { filter: drop-shadow(0 0 4px rgba(255,255,255,.65)); }
+.layer-row { align-items: center; }
 .color-input { min-height: 42px; }
 .smart-stage-wrap { border: 1px solid var(--line); border-radius: 20px; padding: .6rem; background: linear-gradient(180deg, #f9f9f9, #f1f1f1); }
 .smart-stage { position: relative; width: 100%; aspect-ratio: 4/5; overflow: hidden; border-radius: 18px; background: #ddd; }

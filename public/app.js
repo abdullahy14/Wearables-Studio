@@ -10,6 +10,8 @@ const FONTS = ['Inter', 'Helvetica Neue', 'Arial', 'Georgia', 'Times New Roman',
 
 const app = document.getElementById('app');
 let dragOverlay = null;
+let dragDesignLayer = null;
+let drawState = null;
 
 const state = {
   bootstrap: null,
@@ -34,6 +36,10 @@ const state = {
   designEditor: {
     activeSurface: 'front',
     shirtColor: 'black',
+    toolMode: 'move',
+    penColor: '#ff7a18',
+    penSize: 4,
+    penType: 'round',
     surfaces: {
       front: [{ id: 'front-text-1', label: 'Front Text A', type: 'text', content: 'Wearables', x: 50, y: 90, fontSize: 38, fontFamily: 'Inter', color: '#ffffff' }],
       back: [{ id: 'back-text-1', label: 'Back Text A', type: 'text', content: 'Studio', x: 50, y: 90, fontSize: 32, fontFamily: 'Inter', color: '#ffffff' }],
@@ -63,6 +69,7 @@ function roleLandingPath(user) {
 }
 function canManageSmartSystem() { return canAccessSupport() && state.currentPath === '/support'; }
 function selectedLayer() { const s = state.designEditor.activeSurface; return state.designEditor.surfaces[s].find((l) => l.id === state.designEditor.selectedIds[s]); }
+function activeSurfaceLayers() { return state.designEditor.surfaces[state.designEditor.activeSurface]; }
 
 function navigate(path) {
   history.pushState({}, '', path);
@@ -77,11 +84,25 @@ function surfaceImage(surfaceKey) {
   canvas.height = 420;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, 420, 420);
-  state.designEditor.surfaces[surfaceKey].forEach((layer) => {
+  const layers = state.designEditor.surfaces[surfaceKey];
+  layers.forEach((layer) => {
     if (layer.type === 'text') {
-      ctx.fillStyle = layer.color;
-      ctx.font = `700 ${layer.fontSize}px ${layer.fontFamily}`;
-      ctx.fillText(layer.content, layer.x, layer.y + layer.fontSize);
+      ctx.save();
+      ctx.translate(layer.x || 0, layer.y || 0);
+      ctx.rotate(((layer.rotation || 0) * Math.PI) / 180);
+      ctx.fillStyle = layer.color || '#fff';
+      ctx.font = `700 ${layer.fontSize || 32}px ${layer.fontFamily || 'Inter'}`;
+      ctx.fillText(layer.content || '', 0, layer.fontSize || 32);
+      ctx.restore();
+    }
+    if (layer.type === 'path') {
+      ctx.beginPath();
+      (layer.points || []).forEach((point, idx) => idx === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
+      ctx.strokeStyle = layer.color || '#fff';
+      ctx.lineWidth = layer.size || 4;
+      ctx.lineJoin = layer.penType || 'round';
+      ctx.lineCap = layer.penType || 'round';
+      ctx.stroke();
     }
   });
   return canvas.toDataURL('image/png');
@@ -133,8 +154,27 @@ document.addEventListener('click', async (event) => {
     render();
     return;
   }
+  if (action === 'set-tool') { state.designEditor.toolMode = btn.dataset.tool; render(); return; }
   if (action === 'set-surface') { state.designEditor.activeSurface = btn.dataset.surface; render(); return; }
   if (action === 'pick-layer') { state.designEditor.selectedIds[state.designEditor.activeSurface] = btn.dataset.id; render(); return; }
+  if (action === 'delete-layer') {
+    const key = state.designEditor.activeSurface;
+    state.designEditor.surfaces[key] = state.designEditor.surfaces[key].filter((layer) => layer.id !== btn.dataset.id);
+    state.designEditor.selectedIds[key] = state.designEditor.surfaces[key][0]?.id || null;
+    render();
+    return;
+  }
+  if (action === 'layer-up' || action === 'layer-down') {
+    const layers = activeSurfaceLayers();
+    const idx = layers.findIndex((layer) => layer.id === btn.dataset.id);
+    if (idx < 0) return;
+    const delta = action === 'layer-up' ? -1 : 1;
+    const next = idx + delta;
+    if (next < 0 || next >= layers.length) return;
+    [layers[idx], layers[next]] = [layers[next], layers[idx]];
+    render();
+    return;
+  }
   if (action === 'preview-on-model') {
     addOverlay(state.smartSystem.activeView, surfaceImage(state.designEditor.activeSurface));
     render();
@@ -157,6 +197,23 @@ document.addEventListener('click', async (event) => {
     alert('Preview mapping saved.');
     return;
   }
+  if (action === 'save-site-config') {
+    const payload = {
+      price: Number(document.querySelector('[data-input="site-price"]')?.value || state.bootstrap.brand.price),
+      commission: Number(document.querySelector('[data-input="site-commission"]')?.value || state.bootstrap.brand.commission),
+      homepageSections: state.bootstrap.siteConfig.homepageSections,
+      homepageImages: state.bootstrap.siteConfig.homepageImages
+    };
+    await api('/api/site-config', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    await loadBootstrap();
+    render();
+    return;
+  }
+  if (action === 'add-home-section') {
+    state.bootstrap.siteConfig.homepageSections.push({ id: `sec-${Date.now()}`, title: 'New Section', body: 'Edit this text from technical support.' });
+    render();
+    return;
+  }
   if (action === 'remove-media') { state.media = state.media.filter((item) => item.id !== btn.dataset.id); persistMedia(); render(); return; }
   if (action === 'remove-creator-media') { state.creatorMedia = state.creatorMedia.filter((item) => item.id !== btn.dataset.id); persistMedia(); render(); return; }
 });
@@ -169,9 +226,21 @@ document.addEventListener('input', (event) => {
   if (layer && t.matches('[data-input="layer-content"]')) { layer.content = t.value; changed = true; }
   if (layer && t.matches('[data-input="layer-font"]')) { layer.fontFamily = t.value; changed = true; }
   if (layer && t.matches('[data-input="layer-size"]')) { layer.fontSize = Number(t.value); changed = true; }
+  if (layer && t.matches('[data-input="layer-width"]')) { layer.width = Number(t.value); changed = true; }
+  if (layer && t.matches('[data-input="layer-height"]')) { layer.height = Number(t.value); changed = true; }
+  if (layer && t.matches('[data-input="layer-rotation"]')) { layer.rotation = Number(t.value); changed = true; }
   if (layer && t.matches('[data-input="layer-color"]')) { layer.color = t.value; changed = true; }
-  if (layer && t.matches('[data-input="layer-x"]')) { layer.x = Number(t.value); changed = true; }
-  if (layer && t.matches('[data-input="layer-y"]')) { layer.y = Number(t.value); changed = true; }
+  if (t.matches('[data-input="tool-pen-color"]')) { state.designEditor.penColor = t.value; changed = true; }
+  if (t.matches('[data-input="tool-pen-size"]')) { state.designEditor.penSize = Number(t.value); changed = true; }
+  if (t.matches('[data-input="tool-pen-type"]')) { state.designEditor.penType = t.value; changed = true; }
+  if (t.matches('[data-input="home-section-title"]')) {
+    const section = state.bootstrap.siteConfig.homepageSections.find((item) => item.id === t.dataset.id);
+    if (section) { section.title = t.value; changed = true; }
+  }
+  if (t.matches('[data-input="home-section-body"]')) {
+    const section = state.bootstrap.siteConfig.homepageSections.find((item) => item.id === t.dataset.id);
+    if (section) { section.body = t.value; changed = true; }
+  }
 
   if (t.matches('[data-input="overlay-x"]')) { updateOverlayField(t, 'x'); changed = true; }
   if (t.matches('[data-input="overlay-y"]')) { updateOverlayField(t, 'y'); changed = true; }
@@ -192,7 +261,32 @@ document.addEventListener('change', (event) => {
   if (!(t instanceof HTMLElement)) return;
 
   if (t.matches('[data-upload="support-media"]')) return handleUpload(t, 'support');
+  if (t.matches('[data-upload="home-image"]')) {
+    const file = t.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      state.bootstrap.siteConfig.homepageImages.unshift(String(reader.result));
+      render();
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
   if (t.matches('[data-upload="creator-media"]')) return handleUpload(t, 'creator');
+  if (t.matches('[data-upload="design-image"]')) {
+    const file = t.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const key = state.designEditor.activeSurface;
+      const id = `${key}-image-${Date.now()}`;
+      state.designEditor.surfaces[key].push({ id, label: `${SURFACES.find((s) => s.key === key).short} Image ${String.fromCharCode(65 + state.designEditor.surfaces[key].length)}`, type: 'image', src: String(reader.result), x: 80, y: 90, width: 140, height: 140, rotation: 0 });
+      state.designEditor.selectedIds[key] = id;
+      render();
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
   if (t.matches('[data-upload="model-image"]')) return handleModelUpload(t);
   if (t.matches('[data-upload="overlay-image"]')) {
     const file = t.files?.[0];
@@ -231,6 +325,31 @@ document.addEventListener('submit', async (event) => {
       navigate('/');
     } catch (error) { alert(error.message); }
   }
+  if (form.matches('[data-form="checkout"]')) {
+    event.preventDefault();
+    if (!state.cart.length) return alert('Cart is empty.');
+    try {
+      const payload = Object.fromEntries(new FormData(form));
+      const items = state.cart.map((item) => ({ ...item, quantity: Number(item.quantity || 1), price: Number(item.price || state.bootstrap.brand.price), unitPrice: Number(item.price || state.bootstrap.brand.price) }));
+      const order = await api('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: state.session?.id || 'guest',
+          customerName: payload.customerName || state.session?.name || 'Guest',
+          phone: payload.phone || '',
+          notes: `AnestaPayRef:${payload.anestaRef || 'N/A'}; CreatorRef:${payload.creatorRef || 'none'}`,
+          items
+        })
+      });
+      state.cart = [];
+      persistCart();
+      alert(`Order placed. Creator credits added: EGP ${order.order.creatorCredits || 0}.`);
+      await loadBootstrap();
+      render();
+    } catch (error) { alert(error.message); }
+    return;
+  }
 });
 
 
@@ -262,6 +381,38 @@ document.addEventListener('drop', (event) => {
 });
 
 document.addEventListener('pointerdown', (event) => {
+  const canvas = event.target.closest('[data-design-canvas]');
+  const layerNode = event.target.closest('[data-design-layer]');
+  if (canvas) {
+    const canvasRect = canvas.getBoundingClientRect();
+    if (state.designEditor.toolMode === 'draw') {
+      const x = event.clientX - canvasRect.left;
+      const y = event.clientY - canvasRect.top;
+      const key = state.designEditor.activeSurface;
+      const id = `${key}-path-${Date.now()}`;
+      const path = { id, label: `${SURFACES.find((s) => s.key === key).short} Draw ${String.fromCharCode(65 + state.designEditor.surfaces[key].length)}`, type: 'path', points: [{ x, y }], color: state.designEditor.penColor, size: state.designEditor.penSize, penType: state.designEditor.penType };
+      state.designEditor.surfaces[key].push(path);
+      state.designEditor.selectedIds[key] = id;
+      drawState = { id, rect: canvasRect };
+      render();
+      return;
+    }
+    if (layerNode) {
+      const id = layerNode.dataset.designLayer;
+      const layer = activeSurfaceLayers().find((entry) => entry.id === id);
+      if (!layer) return;
+      state.designEditor.selectedIds[state.designEditor.activeSurface] = id;
+      dragDesignLayer = {
+        id,
+        rect: canvasRect,
+        offsetX: event.clientX - canvasRect.left - (layer.x || 0),
+        offsetY: event.clientY - canvasRect.top - (layer.y || 0)
+      };
+      render();
+      return;
+    }
+  }
+
   const node = event.target.closest('[data-overlay-id]');
   if (!node || state.smartSystem.mode !== 'edit' || !canManageSmartSystem()) return;
   const stage = node.closest('[data-smart-stage]');
@@ -275,6 +426,21 @@ document.addEventListener('pointerdown', (event) => {
 });
 
 document.addEventListener('pointermove', (event) => {
+  if (drawState) {
+    const path = activeSurfaceLayers().find((layer) => layer.id === drawState.id);
+    if (!path) return;
+    path.points.push({ x: event.clientX - drawState.rect.left, y: event.clientY - drawState.rect.top });
+    render();
+    return;
+  }
+  if (dragDesignLayer) {
+    const layer = activeSurfaceLayers().find((entry) => entry.id === dragDesignLayer.id);
+    if (!layer) return;
+    layer.x = Math.max(0, event.clientX - dragDesignLayer.rect.left - dragDesignLayer.offsetX);
+    layer.y = Math.max(0, event.clientY - dragDesignLayer.rect.top - dragDesignLayer.offsetY);
+    render();
+    return;
+  }
   if (!dragOverlay) return;
   const list = state.smartSystem.mappings[state.smartSystem.activeView];
   const item = list.find((x) => x.id === dragOverlay.id);
@@ -286,7 +452,7 @@ document.addEventListener('pointermove', (event) => {
   render();
 });
 
-document.addEventListener('pointerup', () => { dragOverlay = null; });
+document.addEventListener('pointerup', () => { dragOverlay = null; dragDesignLayer = null; drawState = null; });
 
 function handleUpload(input, type) {
   const files = [...(input.files || [])];
@@ -316,6 +482,19 @@ function handleModelUpload(input) {
   reader.readAsDataURL(file);
 }
 
+function renderDesignLayer(layer, selected) {
+  if (layer.type === 'text') {
+    return `<div class="design-layer ${selected ? 'selected' : ''}" data-design-layer="${layer.id}" style="left:${layer.x || 0}px;top:${layer.y || 0}px;color:${layer.color || '#fff'};font-size:${layer.fontSize || 32}px;font-family:${layer.fontFamily || 'Inter'};transform:rotate(${layer.rotation || 0}deg);">${escapeHtml(layer.content || '')}</div>`;
+  }
+  if (layer.type === 'image') {
+    return `<img class="design-layer ${selected ? 'selected' : ''}" data-design-layer="${layer.id}" src="${layer.src}" alt="${escapeHtml(layer.label)}" style="left:${layer.x || 0}px;top:${layer.y || 0}px;width:${layer.width || 140}px;height:${layer.height || 140}px;transform:rotate(${layer.rotation || 0}deg);" />`;
+  }
+  if (layer.type === 'path') {
+    return `<svg class="design-path-layer ${selected ? 'selected' : ''}" data-design-layer="${layer.id}" style="left:0;top:0;"><polyline points="${(layer.points || []).map((pt) => `${pt.x},${pt.y}`).join(' ')}" fill="none" stroke="${layer.color || '#fff'}" stroke-width="${layer.size || 4}" stroke-linecap="${layer.penType || 'round'}" stroke-linejoin="${layer.penType || 'round'}"></polyline></svg>`;
+  }
+  return '';
+}
+
 function renderSmartSystem(prefix = 'support') {
   const view = state.smartSystem.activeView;
   const overlays = state.smartSystem.mappings[view];
@@ -330,6 +509,8 @@ function renderSmartSystem(prefix = 'support') {
 
 function shell(content) {
   const navLinks = [['/', 'Home'], ['/design', 'Design Studio'], ['/creator-hub', 'Creator Hub'], ['/checkout', 'Checkout'], ['/about', 'About']];
+  if (canAccessSupport()) navLinks.push(['/support', 'Technical Support']);
+  if (canAccessAdmin()) navLinks.push(['/dashboard', 'Admin Dashboard']);
   return `<div class="shell"><header class="header"><div class="container header-inner"><a href="/" data-link class="brand">Wearables Studio</a><nav class="nav">${navLinks.map(([href, label]) => `<a href="${href}" data-link class="${activeClass(href)}">${label}</a>`).join('')}</nav><div class="actions"><a href="/checkout" data-link class="button-ghost">Cart (${state.cart.length})</a>${state.session ? `<button class="button">${escapeHtml(state.session.name.split(' ')[0])}</button><button class="button-ghost" data-action="logout">Logout</button>` : '<a href="/login" data-link class="button">Login</a>'}</div></div></header><main class="page container">${content}</main><footer class="footer"><div class="container footer-inner"><strong>Wearables Studio</strong><span class="muted">Premium custom apparel</span></div></footer><nav class="mobile-nav">${navLinks.map(([href, label]) => `<a href="${href}" data-link class="${activeClass(href)}">${label}</a>`).join('')}</nav></div>`;
 }
 
@@ -339,19 +520,31 @@ function homePage() {
     ['Editorial Beige', 'Neutral tones with premium serif headlines.'],
     ['Street Utility', 'Strong shoulder marks with compact chest logos.']
   ];
-  return shell(`<section class="hero card soft"><div class="stack"><span class="badge">Wearables Studio · Premium Identity</span><h1 class="title-xl">Your premium custom-wear platform with creator-led brand storytelling.</h1><p class="muted">Brand direction: minimalist luxury, bold typography, editorial photography, and smooth product previews matching your modern UI language.</p><div class="toolbar"><a href="/design" data-link class="button">Start Designing</a><a href="/creator-hub" data-link class="button-ghost">Open Creator Hub</a></div><div class="grid-3">${recommendations.map(([title, desc]) => `<article class="support-item"><strong>${title}</strong><p class="muted small">${desc}</p></article>`).join('')}</div></div></section><section class="grid-2"><article class="card"><div class="eyebrow">Brand Recommendation</div><h3 class="section-title">Hero Visual Language</h3><p class="muted">Use monochrome foundations, one warm neutral accent, rounded modules, and soft shadows across all pages.</p></article><article class="card"><div class="eyebrow">Drop Recommendation</div><h3 class="section-title">Collection Strategy</h3><p class="muted">Launch capsule drops: Signature Black, Studio Ivory, and Shoulder Mark Series with consistent naming and tags.</p></article></section>`);
+  const cfg = state.bootstrap.siteConfig || { homepageImages: [], homepageSections: [] };
+  return shell(`<section class="hero card soft"><div class="stack"><span class="badge">Wearables Studio · Premium Identity</span><h1 class="title-xl">Your premium custom-wear platform with creator-led brand storytelling.</h1><p class="muted">Live price: ${currency(state.bootstrap.brand.price)} · Creator credit: ${currency(state.bootstrap.brand.commission)} per creator-linked shirt.</p><div class="toolbar"><a href="/design" data-link class="button">Start Designing</a><a href="/creator-hub" data-link class="button-ghost">Open Creator Hub</a></div><div class="media-grid">${cfg.homepageImages.map((src, i) => `<img class="media-thumb" src="${src}" alt="Homepage ${i + 1}" />`).join('')}</div><div class="grid-3">${recommendations.map(([title, desc]) => `<article class="support-item"><strong>${title}</strong><p class="muted small">${desc}</p></article>`).join('')}</div></div></section><section class="grid-2">${cfg.homepageSections.map((section) => `<article class="card"><div class="eyebrow">Site Section</div><h3 class="section-title">${escapeHtml(section.title)}</h3><p class="muted">${escapeHtml(section.body)}</p></article>`).join('')}</section>`);
 }
 
 function designPage() {
   const layer = selectedLayer();
-  return shell(`<section class="section"><div class="eyebrow">Design Studio</div><h1 class="title-lg">2D model preview with smart placement mapping.</h1><p class="muted">3D mockups have been fully removed. Technical Support defines model images/zones, and designers preview artwork inside those mapped areas.</p></section><section class="designer-board"><div class="card stack"><div class="tabs">${SURFACES.map((s) => `<button class="tab ${state.designEditor.activeSurface === s.key ? 'active' : ''}" data-action="set-surface" data-surface="${s.key}">${s.label}</button>`).join('')}</div><div class="toolbar"><button class="button" data-action="add-text">Add Text</button><button class="button-secondary" data-action="preview-on-model">Preview on Model</button></div><label>Text<input class="input" data-input="layer-content" value="${escapeHtml(layer?.content || '')}" /></label><div class="grid-2"><label>Font<select class="select" data-input="layer-font">${FONTS.map((f) => `<option ${layer?.fontFamily === f ? 'selected' : ''}>${f}</option>`).join('')}</select></label><label>Font Size<input type="range" min="12" max="120" value="${layer?.fontSize || 32}" data-input="layer-size" /></label></div><div class="grid-3"><label>Color<input class="input color-input" type="color" data-input="layer-color" value="${layer?.color || '#ffffff'}" /></label><label>X<input type="range" min="0" max="300" value="${layer?.x || 0}" data-input="layer-x" /></label><label>Y<input type="range" min="0" max="300" value="${layer?.y || 0}" data-input="layer-y" /></label></div><div class="canvas-panel ${state.designEditor.shirtColor}">${state.designEditor.surfaces[state.designEditor.activeSurface].map((item) => `<button class="button-ghost ${item.id === state.designEditor.selectedIds[state.designEditor.activeSurface] ? 'selected-chip' : ''}" data-action="pick-layer" data-id="${item.id}">${item.label}</button>`).join('')}</div></div><div class="stack">${renderSmartSystem('designer')}</div></section>`);
+  const layers = activeSurfaceLayers();
+  return shell(`<section class="section"><div class="eyebrow">Design Studio</div><h1 class="title-lg">Canvas editor with drag, rotate, scale, and layered structure.</h1><p class="muted">Use the canvas to drag-drop layers with pointer gestures. X/Y controls are removed in favor of direct manipulation.</p></section><section class="designer-board"><div class="card stack"><div class="tabs">${SURFACES.map((s) => `<button class="tab ${state.designEditor.activeSurface === s.key ? 'active' : ''}" data-action="set-surface" data-surface="${s.key}">${s.label}</button>`).join('')}</div><div class="toolbar"><button class="button" data-action="add-text">Add Text</button><label class="button-ghost">Add Photo<input type="file" accept="image/*" hidden data-upload="design-image" /></label><button class="button-ghost ${state.designEditor.toolMode === 'move' ? 'selected-chip' : ''}" data-action="set-tool" data-tool="move">Move</button><button class="button-ghost ${state.designEditor.toolMode === 'draw' ? 'selected-chip' : ''}" data-action="set-tool" data-tool="draw">Freehand</button><button class="button-secondary" data-action="preview-on-model">Preview on Model</button></div><div class="canvas-panel ${state.designEditor.shirtColor}" data-design-canvas>${layers.map((item) => renderDesignLayer(item, item.id === state.designEditor.selectedIds[state.designEditor.activeSurface])).join('')}</div><div class="card stack"><div class="row"><strong>Layer Structure</strong><span class="muted small">${layers.length} layer(s)</span></div>${layers.map((item) => `<div class="row layer-row"><button class="button-ghost ${item.id === state.designEditor.selectedIds[state.designEditor.activeSurface] ? 'selected-chip' : ''}" data-action="pick-layer" data-id="${item.id}">${escapeHtml(item.label)}</button><div class="toolbar"><button class="button-ghost" data-action="layer-up" data-id="${item.id}">↑</button><button class="button-ghost" data-action="layer-down" data-id="${item.id}">↓</button><button class="button-ghost" data-action="delete-layer" data-id="${item.id}">Delete</button></div></div>`).join('') || '<p class="muted">No layers yet.</p>'}</div>${layer ? `<div class="grid-2"><label>Text<input class="input" data-input="layer-content" value="${escapeHtml(layer.content || '')}" ${layer.type === 'text' ? '' : 'disabled'} /></label><label>Font<select class="select" data-input="layer-font" ${layer.type === 'text' ? '' : 'disabled'}>${FONTS.map((f) => `<option ${layer.fontFamily === f ? 'selected' : ''}>${f}</option>`).join('')}</select></label><label>Font Size<input class="input" type="number" min="8" max="200" data-input="layer-size" value="${layer.fontSize || 32}" ${layer.type === 'text' ? '' : 'disabled'} /></label><label>Width<input class="input" type="number" min="20" max="500" data-input="layer-width" value="${layer.width || 140}" ${(layer.type === 'image') ? '' : 'disabled'} /></label><label>Height<input class="input" type="number" min="20" max="500" data-input="layer-height" value="${layer.height || 140}" ${(layer.type === 'image') ? '' : 'disabled'} /></label><label>Rotation °<input class="input" type="number" min="-180" max="180" data-input="layer-rotation" value="${layer.rotation || 0}" ${layer.type === 'path' ? 'disabled' : ''} /></label><label>Color<input class="input color-input" type="color" data-input="layer-color" value="${layer.color || '#ffffff'}" ${layer.type === 'path' || layer.type === 'text' ? '' : 'disabled'} /></label></div>` : ''}<div class="grid-3"><label>Pen Color<input class="input color-input" type="color" data-input="tool-pen-color" value="${state.designEditor.penColor}" /></label><label>Pen Size<input class="input" type="number" min="1" max="32" data-input="tool-pen-size" value="${state.designEditor.penSize}" /></label><label>Pen Type<select class="select" data-input="tool-pen-type"><option value="round" ${state.designEditor.penType === 'round' ? 'selected' : ''}>Round</option><option value="square" ${state.designEditor.penType === 'square' ? 'selected' : ''}>Square</option></select></label></div></div></div><div class="stack">${renderSmartSystem('designer')}</div></section>`);
 }
 
 function creatorHubPage() {
-  return shell(`<section class="section"><div class="eyebrow">Creator Hub</div><h1 class="title-lg">Creator asset upload & management.</h1><p class="muted">Drag/drop or select multiple images, preview, remove, and replace uploads.</p></section><section class="card stack"><div class="toolbar"><label class="button">Upload Creator Images<input hidden type="file" accept="image/*" multiple data-upload="creator-media" /></label><span class="muted">PNG/JPG up to 5MB each.</span></div><div class="dropzone" data-dropzone="creator">Drag & drop creator assets here or use upload button.</div><div class="media-grid">${state.creatorMedia.length ? state.creatorMedia.map((item) => `<article class="support-item stack"><img src="${item.url}" alt="${escapeHtml(item.name)}" class="media-thumb" /><div><strong>${escapeHtml(item.name)}</strong><div class="muted small">${Math.round(item.size / 1024)} KB</div></div><button class="button-ghost" data-action="remove-creator-media" data-id="${item.id}">Remove</button></article>`).join('') : '<p class="muted">No creator images uploaded yet.</p>'}</div></section>`);
+  const myDesigns = state.session ? state.bootstrap.designs.filter((design) => design.creatorId === state.session.id || design.creatorId === 'creator-1' && state.session.role === 'creator') : [];
+  const totals = myDesigns.reduce((acc, design) => {
+    acc.sales += design.salesCount || 0;
+    acc.likes += design.likes || 0;
+    acc.comments += design.comments || 0;
+    return acc;
+  }, { sales: 0, likes: 0, comments: 0 });
+  return shell(`<section class="section"><div class="eyebrow">Creator Hub</div><h1 class="title-lg">Creator dashboard, marketing assets, and performance overview.</h1><p class="muted">Track your designs and engagement in one place.</p></section><section class="grid-3"><article class="card"><div class="eyebrow">Sales</div><h3>${totals.sales}</h3></article><article class="card"><div class="eyebrow">Likes</div><h3>${totals.likes}</h3></article><article class="card"><div class="eyebrow">Comments</div><h3>${totals.comments}</h3></article></section><section class="card stack"><h3 class="section-title">My Designs</h3>${myDesigns.length ? myDesigns.map((design) => `<article class="support-item row"><div><strong>${escapeHtml(design.title)}</strong><div class="muted small">${design.salesCount || 0} sales · ${design.likes || 0} likes · ${design.comments || 0} comments</div></div><span class="tag">${currency(design.price || state.bootstrap.brand.price)}</span></article>`).join('') : '<p class="muted">Log in with a creator account to see your design dashboard.</p>'}</section><section class="card stack"><div class="toolbar"><label class="button">Upload Marketing Images<input hidden type="file" accept="image/*" multiple data-upload="creator-media" /></label><span class="muted">PNG/JPG up to 5MB each.</span></div><div class="dropzone" data-dropzone="creator">Drag & drop creator assets here or use upload button.</div><div class="media-grid">${state.creatorMedia.length ? state.creatorMedia.map((item) => `<article class="support-item stack"><img src="${item.url}" alt="${escapeHtml(item.name)}" class="media-thumb" /><div><strong>${escapeHtml(item.name)}</strong><div class="muted small">${Math.round(item.size / 1024)} KB</div></div><button class="button-ghost" data-action="remove-creator-media" data-id="${item.id}">Remove</button></article>`).join('') : '<p class="muted">No creator images uploaded yet.</p>'}</div></section>`);
 }
 
-function checkoutPage() { return shell('<section class="card"><h1 class="title-lg">Checkout</h1><p class="muted">Checkout workflow unchanged.</p></section>'); }
+function checkoutPage() {
+  const total = state.cart.reduce((sum, item) => sum + Number(item.price || state.bootstrap.brand.price) * Number(item.quantity || 1), 0);
+  return shell(`<section class="section"><div class="eyebrow">Checkout</div><h1 class="title-lg">AnestaPay Checkout (EGP)</h1><p class="muted">Pay in Egyptian Pounds with AnestaPay reference + creator referral support.</p></section><section class="grid-2"><div class="card stack"><h3 class="section-title">Cart</h3>${state.cart.length ? state.cart.map((item) => `<div class="support-item row"><span>${escapeHtml(item.designTitle || item.designId || 'Custom Design')} x${item.quantity || 1}</span><strong>${currency(Number(item.price || state.bootstrap.brand.price) * Number(item.quantity || 1))}</strong></div>`).join('') : '<p class="muted">Your cart is empty.</p>'}<div class="row"><strong>Total</strong><strong>${currency(total)}</strong></div></div><form class="card stack" data-form="checkout"><label>Name<input class="input" name="customerName" value="${escapeHtml(state.session?.name || '')}" required /></label><label>Phone<input class="input" name="phone" placeholder="+20 ..." required /></label><label>AnestaPay Reference<input class="input" name="anestaRef" placeholder="ANESTA-XXXXXX" required /></label><label>Creator Referral (optional)<input class="input" name="creatorRef" placeholder="creator username / code" /></label><div class="notice">For creator-linked designs, EGP ${state.bootstrap.brand.commission} credit is added to the creator wallet per shirt sold.</div><button class="button" ${state.cart.length ? '' : 'disabled'}>Confirm Payment & Place Order</button></form></section>`);
+}
 
 function loginPage() {
   return shell(`<section class="center-wrap"><div class="card stack auth-card"><div class="eyebrow">Login</div><h1 class="title-lg">Access Wearables Studio.</h1><p class="muted">Any registered email can log in. No default email is forced.</p><form data-form="login" class="stack"><input class="input" name="email" type="email" placeholder="Email" autocomplete="email" required /><input class="input" name="password" type="password" placeholder="Password" autocomplete="current-password" required /><button class="button">Login</button></form></div></section>`);
@@ -368,7 +561,8 @@ function dashboardPage() {
 
 function supportPage() {
   if (!canAccessSupport()) return shell('<section class="card"><h1 class="title-lg">Technical Support access required</h1></section>');
-  return shell(`<section class="section"><div class="eyebrow">Technical Support Dashboard</div><h1 class="title-lg">Media Management + Smart Mapping</h1></section><section class="card stack"><div class="toolbar"><label class="button">Upload Support Images<input hidden type="file" accept="image/*" multiple data-upload="support-media" /></label><span class="muted">Image validation: type image/*, max 5MB.</span></div><div class="dropzone" data-dropzone="support">Drag & drop support images here or use upload button.</div><div class="media-grid">${state.media.length ? state.media.map((item) => `<article class="support-item stack"><img src="${item.url}" alt="${escapeHtml(item.name)}" class="media-thumb" /><div><strong>${escapeHtml(item.name)}</strong><div class="muted small">Tag: ${item.tag}</div></div><button class="button-ghost" data-action="remove-media" data-id="${item.id}">Delete</button></article>`).join('') : '<p class="muted">No support media uploaded yet.</p>'}</div></section>${renderSmartSystem('support')}`);
+  const cfg = state.bootstrap.siteConfig || { homepageSections: [], homepageImages: [] };
+  return shell(`<section class="section"><div class="eyebrow">Technical Support Dashboard</div><h1 class="title-lg">Operations, site controls, and Smart Mapping</h1></section><section class="card stack"><div class="row"><h3 class="section-title">Site Controls</h3><button class="button-secondary" data-action="save-site-config">Save Website Settings</button></div><div class="grid-2"><label>Item Price (EGP)<input class="input" type="number" data-input="site-price" value="${state.bootstrap.brand.price}" /></label><label>Creator Commission (EGP)<input class="input" type="number" data-input="site-commission" value="${state.bootstrap.brand.commission}" /></label></div><div class="toolbar"><label class="button">Upload Homepage Image<input hidden type="file" accept="image/*" data-upload="home-image" /></label><button class="button-ghost" data-action="add-home-section">Add Homepage Section</button></div><div class="media-grid">${cfg.homepageImages.map((src) => `<img class="media-thumb" src="${src}" alt="Home media" />`).join('')}</div>${cfg.homepageSections.map((section) => `<article class="support-item stack"><input class="input" data-input="home-section-title" data-id="${section.id}" value="${escapeHtml(section.title)}" /><textarea class="input" data-input="home-section-body" data-id="${section.id}" rows="3">${escapeHtml(section.body)}</textarea></article>`).join('')}</section><section class="card stack"><div class="toolbar"><label class="button">Upload Support Images<input hidden type="file" accept="image/*" multiple data-upload="support-media" /></label><span class="muted">Image validation: type image/*, max 5MB.</span></div><div class="dropzone" data-dropzone="support">Drag & drop support images here or use upload button.</div><div class="media-grid">${state.media.length ? state.media.map((item) => `<article class="support-item stack"><img src="${item.url}" alt="${escapeHtml(item.name)}" class="media-thumb" /><div><strong>${escapeHtml(item.name)}</strong><div class="muted small">Tag: ${item.tag}</div></div><button class="button-ghost" data-action="remove-media" data-id="${item.id}">Delete</button></article>`).join('') : '<p class="muted">No support media uploaded yet.</p>'}</div></section>${renderSmartSystem('support')}`);
 }
 
 function aboutPage() { return shell('<section class="card"><h1 class="title-lg">About</h1></section>'); }

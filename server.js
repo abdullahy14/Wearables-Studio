@@ -11,8 +11,10 @@ import {
   createQrRecord,
   createUser,
   db,
+  getSiteConfig,
   listPreviewConfigs,
   savePreviewConfig,
+  updateSiteConfig,
   findCreator,
   findDesign,
   findOrder,
@@ -63,8 +65,10 @@ function getCreatorName(creatorId) {
 }
 
 function buildBootstrap() {
+  const siteConfig = getSiteConfig();
   return {
-    brand: { price: SHIRT_PRICE, commission: CREATOR_COMMISSION },
+    brand: { price: siteConfig.price ?? SHIRT_PRICE, commission: siteConfig.commission ?? CREATOR_COMMISSION },
+    siteConfig,
     designs: db.designs.map((design) => ({ ...design, creatorName: getCreatorName(design.creatorId) })),
     creators: db.users.filter((user) => user.role === 'creator').map(sanitizeUser),
     orders: db.orders,
@@ -93,6 +97,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/designs') return sendJson(res, 200, { designs: db.designs });
   if (req.method === 'GET' && url.pathname === '/api/design-exports') return sendJson(res, 200, { exports: db.designExports });
   if (req.method === 'GET' && url.pathname === '/api/preview-configs') return sendJson(res, 200, { configs: listPreviewConfigs() });
+  if (req.method === 'GET' && url.pathname === '/api/site-config') return sendJson(res, 200, { siteConfig: getSiteConfig() });
   if (req.method === 'GET' && url.pathname.startsWith('/api/designs/')) {
     const id = url.pathname.split('/')[3];
     const design = findDesign(id);
@@ -138,6 +143,11 @@ const server = http.createServer(async (req, res) => {
     const body = await parseBody(req).catch(() => ({}));
     if (!body.customerName || !body.phone || !Array.isArray(body.items) || body.items.length === 0) return sendJson(res, 400, { error: 'Invalid order payload' });
     return sendJson(res, 201, { order: createOrder(body) });
+  }
+
+  if (req.method === 'PATCH' && url.pathname === '/api/site-config') {
+    const body = await parseBody(req).catch(() => ({}));
+    return sendJson(res, 200, { siteConfig: updateSiteConfig(body) });
   }
 
   if (req.method === 'PATCH' && /\/api\/orders\/[^/]+\/status/.test(url.pathname)) {
